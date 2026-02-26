@@ -1,9 +1,6 @@
 // This is your Prisma schema file,
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client"
   output   = "../generated/prisma"
@@ -13,9 +10,317 @@ datasource db {
   provider = "postgresql"
 }
 
+// ============= ENUMS =============
+
+enum NotificationType {
+  workspace_invite
+  system
+  reminder
+}
+
+enum InviteStatus {
+  pending
+  accepted
+  rejected
+}
+
+enum WorkspaceMemberRole {
+  owner
+  member
+}
+
+enum ResourceType {
+  PDF
+  DOC
+  IMAGE
+  TXT
+}
+
+enum Difficulty {
+  EASY
+  MEDIUM
+  HARD
+}
+
+enum QuestionType {
+  mcq
+  open_ended
+}
+
+enum MessageRole {
+  user
+  assistant
+  system
+}
+
+// ============= CORE USER & WORKSPACE =============
+
 model User {
-  id Int @id @default(autoincrement())
-  email String @unique
-  fistName String
-  lastName String
+  id                 Int      @id @default(autoincrement())
+  firstName          String
+  lastName           String
+  email              String   @unique
+  hashedPassword     String
+  hashedRefreshToken String?
+  created_at         DateTime @default(now())
+  updated_at         DateTime @updatedAt
+
+  workspaces               Workspace[]
+  notifications            Notification[]
+  workspaceInvitesSent     WorkspaceInvite[] @relation("InviterRelation")
+  workspaceInvitesReceived WorkspaceInvite[] @relation("InviteeRelation")
+  workspaceMembers         WorkspaceMember[]
+}
+
+model Workspace {
+  id         Int      @id @default(autoincrement())
+  name       String
+  ownerId    Int
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  owner         User              @relation(fields: [ownerId], references: [id])
+  members       WorkspaceMember[]
+  invites       WorkspaceInvite[]
+  workbenches   Workbench[]
+  resources     Resource[]
+  flashcards    Flashcard[]
+  questions     Question[]
+  chatHistories ChatHistory[]
+  quizzes       Quiz[]
+
+  @@index([ownerId])
+}
+
+// ============= NOTIFICATIONS =============
+
+model Notification {
+  id         Int              @id @default(autoincrement())
+  userId     Int
+  type       NotificationType
+  title      String
+  message    String
+  is_read    Boolean          @default(false)
+  created_at DateTime         @default(now())
+  read_at    DateTime?
+
+  user            User             @relation(fields: [userId], references: [id])
+  workspaceInvite WorkspaceInvite?
+
+  @@index([userId, is_read, created_at])
+  @@index([userId])
+}
+
+// ============= WORKSPACE SHARING =============
+
+model WorkspaceInvite {
+  id              Int          @id @default(autoincrement())
+  notification_id Int          @unique
+  workspaceId     Int
+  inviter_id      Int
+  invitee_email   String
+  invitee_id      Int?
+  status          InviteStatus @default(pending)
+  created_at      DateTime     @default(now())
+  responded_at    DateTime?
+
+  notification Notification @relation(fields: [notification_id], references: [id])
+  workspace    Workspace    @relation(fields: [workspaceId], references: [id])
+  inviter      User         @relation("InviterRelation", fields: [inviter_id], references: [id])
+  invitee      User?        @relation("InviteeRelation", fields: [invitee_id], references: [id])
+
+  @@unique([workspaceId, invitee_email])
+  @@index([invitee_email])
+  @@index([invitee_id])
+  @@index([status])
+}
+
+model WorkspaceMember {
+  id          Int                 @id @default(autoincrement())
+  workspaceId Int
+  userId      Int
+  role        WorkspaceMemberRole @default(member)
+  joined_at   DateTime            @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id])
+  user      User      @relation(fields: [userId], references: [id])
+
+  @@unique([workspaceId, userId])
+  @@index([userId])
+}
+
+// ============= WORKBENCH =============
+
+model Workbench {
+  id          Int      @id @default(autoincrement())
+  name        String
+  workspaceId Int
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  workspace     Workspace     @relation(fields: [workspaceId], references: [id])
+  resources     Resource[]
+  questions     Question[]
+  chatHistories ChatHistory[]
+  quizzes       Quiz[]
+
+  @@index([workspaceId])
+}
+
+// ============= RESOURCES =============
+
+model Resource {
+  id          Int          @id @default(autoincrement())
+  workbenchId Int
+  workspaceId Int
+  name        String
+  type        ResourceType
+  filePath    String
+  file_size   Int?
+  mime_type   String?
+  created_at  DateTime     @default(now())
+
+  workbench Workbench @relation(fields: [workbenchId], references: [id])
+  workspace Workspace @relation(fields: [workspaceId], references: [id])
+
+  @@index([workspaceId, workbenchId])
+}
+
+// ============= FLASHCARDS =============
+
+model Flashcard {
+  id          Int         @id @default(autoincrement())
+  workspaceId Int
+  question    String
+  answer      String
+  difficulty  Difficulty?
+  created_at  DateTime    @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id])
+
+  @@index([workspaceId])
+}
+
+// ============= QUESTIONS =============
+
+model Question {
+  id            Int          @id @default(autoincrement())
+  workbenchId   Int
+  workspaceId   Int
+  title         String
+  question_type QuestionType
+  explanation   String?
+  difficulty    Difficulty?
+  created_at    DateTime     @default(now())
+
+  workbench       Workbench        @relation(fields: [workbenchId], references: [id])
+  workspace       Workspace        @relation(fields: [workspaceId], references: [id])
+  mcqChoices      MCQChoice[]
+  openEndedAnswer OpenEndedAnswer?
+  quizQuestions   QuizQuestion[]
+
+  @@index([workspaceId, workbenchId])
+  @@index([workbenchId, question_type])
+}
+
+model MCQChoice {
+  id           Int     @id @default(autoincrement())
+  question_id  Int
+  choice_text  String
+  choice_order Int
+  is_correct   Boolean @default(false)
+
+  question Question @relation(fields: [question_id], references: [id])
+
+  @@unique([question_id, choice_order])
+  @@index([question_id])
+}
+
+model OpenEndedAnswer {
+  id            Int    @id @default(autoincrement())
+  question_id   Int    @unique
+  sample_answer String
+
+  question        Question         @relation(fields: [question_id], references: [id])
+  gradingKeywords GradingKeyword[]
+}
+
+model GradingKeyword {
+  id                   Int     @id @default(autoincrement())
+  open_ended_answer_id Int
+  keyword              String
+  weight               Decimal @default(1.0) @db.Decimal(3, 2)
+  is_required          Boolean @default(false)
+
+  openEndedAnswer OpenEndedAnswer @relation(fields: [open_ended_answer_id], references: [id])
+
+  @@unique([open_ended_answer_id, keyword])
+}
+
+// ============= QUIZ =============
+
+model Quiz {
+  id          Int         @id @default(autoincrement())
+  workbenchId Int
+  workspaceId Int
+  title       String
+  description String?
+  difficulty  Difficulty?
+  created_at  DateTime    @default(now())
+  updated_at  DateTime    @updatedAt
+
+  workbench Workbench      @relation(fields: [workbenchId], references: [id])
+  workspace Workspace      @relation(fields: [workspaceId], references: [id])
+  questions QuizQuestion[]
+
+  @@index([workspaceId, workbenchId])
+}
+
+model QuizQuestion {
+  id         Int @id @default(autoincrement())
+  quizId     Int
+  questionId Int
+  order      Int // display order within the quiz
+
+  quiz     Quiz     @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  question Question @relation(fields: [questionId], references: [id], onDelete: Restrict)
+
+  @@unique([quizId, questionId]) // same question can't appear twice in one quiz
+  @@index([quizId])
+  @@index([questionId])
+}
+
+// ============= AI CHAT =============
+
+model ChatHistory {
+  id            Int      @id @default(autoincrement())
+  workbenchId   Int
+  workspaceId   Int
+  title         String
+  model_id      String
+  system_prompt String?
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+
+  workbench Workbench @relation(fields: [workbenchId], references: [id])
+  workspace Workspace @relation(fields: [workspaceId], references: [id])
+  messages  Message[]
+
+  @@index([workspaceId, workbenchId])
+}
+
+model Message {
+  id              Int         @id @default(autoincrement())
+  chat_history_id Int
+  role            MessageRole
+  content         String
+  model_id        String?
+  tokens_used     Int?
+  finish_reason   String?
+  error_message   String?
+  created_at      DateTime    @default(now())
+
+  chatHistory ChatHistory @relation(fields: [chat_history_id], references: [id])
+
+  @@index([chat_history_id, created_at])
 }
