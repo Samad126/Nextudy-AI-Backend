@@ -1,34 +1,63 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  HttpCode,
+  HttpStatus,
+  Post,
+  UseGuards,
+} from '@nestjs/common';
+import { ApiOperation, ApiBearerAuth, ApiBody } from '@nestjs/swagger';
 import { AuthService } from './auth.service.js';
-import { CreateAuthDto } from './dto/create-auth.dto.js';
-import { UpdateAuthDto } from './dto/update-auth.dto.js';
+import { RegisterDto } from './dto/register.dto.js';
+import { LoginDto } from './dto/login.dto.js';
+import { RefreshDto } from './dto/refresh.dto.js';
+import { LocalAuthGuard } from '../../common/guards/local-auth.guard.js';
+import { JwtRefreshGuard } from '../../common/guards/jwt-refresh.guard.js';
+import { GetUser } from '../../common/decorators/get-user.decorator.js';
+import { Public } from '../../common/decorators/public.decorator.js';
+import { JwtPayload } from './types/jwt-payload.type.js';
+import type { User } from '../../../generated/prisma/client.js';
 
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(private authService: AuthService) {}
 
-  @Post()
-  create(@Body() createAuthDto: CreateAuthDto) {
-    return this.authService.create(createAuthDto);
+  @Public()
+  @Post('register')
+  @ApiOperation({ summary: 'Register with email & password' })
+  register(@Body() dto: RegisterDto) {
+    return this.authService.register(dto);
   }
 
-  @Get()
-  findAll() {
-    return this.authService.findAll();
+  @Public()
+  @UseGuards(LocalAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  @Post('login')
+  @ApiOperation({ summary: 'Login with email & password' })
+  @ApiBody({ type: LoginDto })
+  login(@GetUser() user: User) {
+    return this.authService.login(user.id, user.email);
   }
 
-  @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.authService.findOne(+id);
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @Post('logout')
+  @ApiBearerAuth('accessToken')
+  @ApiOperation({ summary: 'Logout (invalidates refresh token)' })
+  logout(@GetUser('sub') userId: number) {
+    return this.authService.logout(userId);
   }
 
-  @Patch(':id')
-  update(@Param('id') id: string, @Body() updateAuthDto: UpdateAuthDto) {
-    return this.authService.update(+id, updateAuthDto);
-  }
-
-  @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.authService.remove(+id);
+  @Public()
+  @UseGuards(JwtRefreshGuard)
+  @HttpCode(HttpStatus.OK)
+  @Post('refresh')
+  @ApiOperation({ summary: 'Get new access + refresh tokens' })
+  @ApiBody({ type: RefreshDto })
+  refresh(@GetUser() user: JwtPayload & { refreshToken: string }) {
+    return this.authService.refreshTokens(
+      user.sub,
+      user.email,
+      user.refreshToken,
+    );
   }
 }

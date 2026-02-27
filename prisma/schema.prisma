@@ -60,7 +60,7 @@ model User {
   firstName          String
   lastName           String
   email              String   @unique
-  hashedPassword     String
+  hashedPassword     String? // null for OAuth-only users (e.g. Google)
   hashedRefreshToken String?
   created_at         DateTime @default(now())
   updated_at         DateTime @updatedAt
