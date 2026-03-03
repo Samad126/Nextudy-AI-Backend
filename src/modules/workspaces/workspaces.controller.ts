@@ -32,6 +32,8 @@ import { WorkspaceRoles } from './decorators/workspace-roles.decorator.js';
 import { SkipWorkspaceCheck } from './decorators/skip-workspace-check.decorator.js';
 import { WorkspaceMemberRole } from '../../../generated/prisma/client.js';
 import { FileUploadDto } from '../resources/dto/file-upload.dto.js';
+import { CreateResourceGroupDto } from '../resources/dto/create-resource-group.dto.js';
+import { UpdateResourceGroupDto } from '../resources/dto/update-resource-group.dto.js';
 
 @Controller('workspaces')
 @ApiBearerAuth('accessToken')
@@ -123,5 +125,63 @@ export class WorkspacesController {
     @Param('resourceId') resourceId: string,
   ) {
     return this.resourcesService.remove(+id, +resourceId);
+  }
+
+  @Get(':id/resourceGroups')
+  @SkipWorkspaceCheck()
+  @ApiOperation({ summary: 'List all resource groups in a workspace' })
+  listResourceGroups(@Param('id') id: string) {
+    return this.resourcesService.findAllGroups(+id);
+  }
+
+  @Post(':id/resourceGroups')
+  @WorkspaceRoles(WorkspaceMemberRole.owner, WorkspaceMemberRole.editor)
+  @ApiOperation({ summary: 'Create a resource group in a workspace' })
+  createResourceGroup(
+    @Param('id') id: string,
+    @Body() createResourceGroupDto: CreateResourceGroupDto,
+  ) {
+    return this.resourcesService.createGroup(+id, createResourceGroupDto);
+  }
+
+  @Put(':id/resourceGroups/:groupId')
+  @WorkspaceRoles(WorkspaceMemberRole.owner, WorkspaceMemberRole.editor)
+  @ApiOperation({ summary: 'Update a resource group' })
+  updateResourceGroup(
+    @Param('id') id: string,
+    @Param('groupId') groupId: string,
+    @Body() updateResourceGroupDto: UpdateResourceGroupDto,
+  ) {
+    return this.resourcesService.updateGroup(
+      +id,
+      +groupId,
+      updateResourceGroupDto,
+    );
+  }
+
+  @Post(':id/resourceGroups/:groupId/resources/:resourceId')
+  @WorkspaceRoles(WorkspaceMemberRole.owner, WorkspaceMemberRole.editor)
+  @ApiOperation({ summary: 'Add a resource to a group' })
+  addResourceToGroup(
+    @Param('id') id: string,
+    @Param('groupId') groupId: string,
+    @Param('resourceId') resourceId: string,
+  ) {
+    return this.resourcesService.addResourceToGroup(+id, +groupId, +resourceId);
+  }
+
+  @Delete(':id/resourceGroups/:groupId/resources/:resourceId')
+  @WorkspaceRoles(WorkspaceMemberRole.owner, WorkspaceMemberRole.editor)
+  @ApiOperation({ summary: 'Remove a resource from a group' })
+  removeResourceFromGroup(
+    @Param('id') id: string,
+    @Param('groupId') groupId: string,
+    @Param('resourceId') resourceId: string,
+  ) {
+    return this.resourcesService.removeResourceFromGroup(
+      +id,
+      +groupId,
+      +resourceId,
+    );
   }
 }

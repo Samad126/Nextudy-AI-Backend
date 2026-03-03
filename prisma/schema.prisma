@@ -81,15 +81,16 @@ model Workspace {
   created_at  DateTime @default(now())
   updated_at  DateTime @updatedAt
 
-  owner         User              @relation(fields: [ownerId], references: [id])
-  members       WorkspaceMember[]
-  invites       WorkspaceInvite[]
-  workbenches   Workbench[]
-  resources     Resource[]
-  flashcards    Flashcard[]
-  questions     Question[]
-  chatHistories ChatHistory[]
-  quizzes       Quiz[]
+  owner          User              @relation(fields: [ownerId], references: [id])
+  members        WorkspaceMember[]
+  invites        WorkspaceInvite[]
+  workbenches    Workbench[]
+  resources      Resource[]
+  flashcards     Flashcard[]
+  questions      Question[]
+  chatHistories  ChatHistory[]
+  quizzes        Quiz[]
+  resourceGroups ResourceGroups[]
 
   @@index([ownerId])
 }
@@ -160,7 +161,7 @@ model Workbench {
   created_at  DateTime @default(now())
   updated_at  DateTime @updatedAt
 
-  workspace     Workspace     @relation(fields: [workspaceId], references: [id])
+  workspace     Workspace           @relation(fields: [workspaceId], references: [id])
   resources     WorkbenchResource[]
   questions     Question[]
   chatHistories ChatHistory[]
@@ -172,7 +173,7 @@ model Workbench {
 model WorkbenchResource {
   workbenchId Int
   resourceId  Int
-  added_at    DateTime  @default(now())
+  added_at    DateTime @default(now())
 
   workbench Workbench @relation(fields: [workbenchId], references: [id], onDelete: Cascade)
   resource  Resource  @relation(fields: [resourceId], references: [id], onDelete: Cascade)
@@ -180,13 +181,14 @@ model WorkbenchResource {
   @@id([workbenchId, resourceId])
 }
 
-
 // ============= RESOURCES =============
 
 model ResourceGroups {
-  id        Int        @id @default(autoincrement())
-  title     String     @unique
-  resources Resource[] @relation("ResourceToGroup")
+  id          Int        @id @default(autoincrement())
+  workspaceId Int
+  name       String     @unique
+  resources   Resource[] @relation("ResourceToGroup")
+  workspace   Workspace  @relation(fields: [workspaceId], references: [id])
 }
 
 model Resource {
