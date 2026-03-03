@@ -27,9 +27,9 @@ import { ResourcesService } from '../resources/resources.service.js';
 import { multerConfig } from '../../common/config/multer.config.js';
 import type { Response } from 'express';
 import { resolve } from 'path';
-import { WorkspaceAccessGuard } from '../../common/guards/workspace-access.guard.js';
-import { WorkspaceRoles } from './guards/workspace-roles.decorator.js';
-import { SkipWorkspaceCheck } from './guards/skip-workspace-check.decorator.js';
+import { WorkspaceAccessGuard } from './guards/workspace-access.guard.js';
+import { WorkspaceRoles } from './decorators/workspace-roles.decorator.js';
+import { SkipWorkspaceCheck } from './decorators/skip-workspace-check.decorator.js';
 import { WorkspaceMemberRole } from '../../../generated/prisma/client.js';
 import { FileUploadDto } from '../resources/dto/file-upload.dto.js';
 

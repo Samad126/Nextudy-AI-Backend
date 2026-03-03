@@ -7,10 +7,10 @@ import {
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { Request } from 'express';
-import { DatabaseService } from '../database/database.service.js';
-import type { WorkspaceMemberRole } from '../../../generated/prisma/client.js';
-import { WORKSPACE_ROLES_KEY } from '../../modules/workspaces/guards/workspace-roles.decorator.js';
-import { SKIP_WORKSPACE_CHECK_KEY } from '../../modules/workspaces/guards/skip-workspace-check.decorator.js';
+import { DatabaseService } from '../../../common/database/database.service.js';
+import type { WorkspaceMemberRole } from '../../../../generated/prisma/client.js';
+import { WORKSPACE_ROLES_KEY } from '../decorators/workspace-roles.decorator.js';
+import { SKIP_WORKSPACE_CHECK_KEY } from '../decorators/skip-workspace-check.decorator.js';
 
 @Injectable()
 export class WorkspaceAccessGuard implements CanActivate {
