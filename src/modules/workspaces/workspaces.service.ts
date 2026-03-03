@@ -1,26 +1,49 @@
 import { Injectable } from '@nestjs/common';
 import { CreateWorkspaceDto } from './dto/create-workspace.dto.js';
 import { UpdateWorkspaceDto } from './dto/update-workspace.dto.js';
+import { DatabaseService } from '../../common/database/database.service.js';
 
 @Injectable()
 export class WorkspacesService {
-  create(createWorkspaceDto: CreateWorkspaceDto) {
-    return 'This action adds a new workspace';
+  constructor(private db: DatabaseService) {}
+
+  async create(userId: number, createWorkspaceDto: CreateWorkspaceDto) {
+    await this.db.workspace.create({
+      data: { ...createWorkspaceDto, ownerId: userId },
+    });
+
+    return {
+      message: 'Workspace created successfully',
+    };
   }
 
-  findAll() {
-    return `This action returns all workspaces`;
+  async findAll(userId: number) {
+    return await this.db.workspace.findMany({
+      where: { ownerId: userId },
+      omit: { ownerId: true },
+    });
   }
 
-  findOne(id: number) {
-    return `This action returns a #${id} workspace`;
+  async update(
+    userId: number,
+    id: number,
+    updateWorkspaceDto: UpdateWorkspaceDto,
+  ) {
+    await this.db.workspace.update({
+      where: { id, ownerId: userId },
+      data: updateWorkspaceDto,
+    });
+
+    return {
+      message: 'Workspace updated successfully',
+    };
   }
 
-  update(id: number, updateWorkspaceDto: UpdateWorkspaceDto) {
-    return `This action updates a #${id} workspace`;
-  }
+  async remove(id: number) {
+    await this.db.workspace.delete({ where: { id } });
 
-  remove(id: number) {
-    return `This action removes a #${id} workspace`;
+    return {
+      message: 'Workspace deleted successfully',
+    };
   }
 }
