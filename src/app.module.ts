@@ -10,6 +10,7 @@ import { FlashcardsModule } from './modules/flashcards/flashcards.module.js';
 import { QuizzesModule } from './modules/quizzes/quizzes.module.js';
 import { WorkbenchesModule } from './modules/workbenches/workbenches.module.js';
 import { SettingsModule } from './modules/settings/settings.module.js';
+import { ConfigModule } from '@nestjs/config';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { SettingsModule } from './modules/settings/settings.module.js';
     QuizzesModule,
     WorkbenchesModule,
     SettingsModule,
+    ConfigModule.forRoot({ isGlobal: true }),
   ],
   providers: [
     {
