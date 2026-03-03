@@ -1,26 +1,57 @@
-import { Injectable } from '@nestjs/common';
-import { CreateResourceDto } from './dto/create-resource.dto.js';
-import { UpdateResourceDto } from './dto/update-resource.dto.js';
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { DatabaseService } from '../../common/database/database.service.js';
+import { ResourceType } from '../../../generated/prisma/client.js';
+import { unlink } from 'fs/promises';
 
 @Injectable()
 export class ResourcesService {
-  create(createResourceDto: CreateResourceDto) {
-    return 'This action adds a new resource';
+  constructor(private db: DatabaseService) {}
+
+  private getResourceType(mimetype: string): ResourceType {
+    if (mimetype === 'application/pdf') return ResourceType.PDF;
+    if (mimetype.startsWith('image/')) return ResourceType.IMAGE;
+    if (mimetype === 'text/plain') return ResourceType.TXT;
+    return ResourceType.DOC;
   }
 
-  findAll() {
-    return `This action returns all resources`;
+  async create(workspaceId: number, file: Express.Multer.File) {
+    return this.db.resource.create({
+      data: {
+        workspaceId,
+        name: file.originalname,
+        filePath: file.path,
+        type: this.getResourceType(file.mimetype),
+        file_size: file.size,
+        mime_type: file.mimetype,
+      },
+      omit: { filePath: true },
+    });
   }
 
-  findOne(id: number) {
-    return `This action returns a #${id} resource`;
+  async findAll(workspaceId: number) {
+    return this.db.resource.findMany({
+      where: { workspaceId },
+      omit: { filePath: true },
+    });
   }
 
-  update(id: number, updateResourceDto: UpdateResourceDto) {
-    return `This action updates a #${id} resource`;
+  async getFilePath(workspaceId: number, resourceId: number) {
+    const resource = await this.db.resource.findFirst({
+      where: { id: resourceId, workspaceId },
+    });
+    if (!resource) throw new NotFoundException('Resource not found');
+    return resource;
   }
 
-  remove(id: number) {
-    return `This action removes a #${id} resource`;
+  async remove(workspaceId: number, resourceId: number) {
+    const resource = await this.db.resource.findFirst({
+      where: { id: resourceId, workspaceId },
+    });
+    if (!resource) throw new NotFoundException('Resource not found');
+
+    await unlink(resource.filePath);
+    await this.db.resource.delete({ where: { id: resourceId } });
+
+    return { message: 'Resource deleted successfully' };
   }
 }

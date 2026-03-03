@@ -13,6 +13,8 @@ services:
       - postgres
     env_file:
       - .env
+    volumes:
+      - ./uploads:/usr/src/app/uploads
 
   # PostgreSQL database service
   postgres:

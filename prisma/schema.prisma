@@ -161,13 +161,25 @@ model Workbench {
   updated_at  DateTime @updatedAt
 
   workspace     Workspace     @relation(fields: [workspaceId], references: [id])
-  resources     Resource[]
+  resources     WorkbenchResource[]
   questions     Question[]
   chatHistories ChatHistory[]
   quizzes       Quiz[]
 
   @@index([workspaceId])
 }
+
+model WorkbenchResource {
+  workbenchId Int
+  resourceId  Int
+  added_at    DateTime  @default(now())
+
+  workbench Workbench @relation(fields: [workbenchId], references: [id], onDelete: Cascade)
+  resource  Resource  @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+
+  @@id([workbenchId, resourceId])
+}
+
 
 // ============= RESOURCES =============
 
@@ -179,7 +191,6 @@ model ResourceGroups {
 
 model Resource {
   id          Int          @id @default(autoincrement())
-  workbenchId Int
   workspaceId Int
   name        String
   type        ResourceType
@@ -188,11 +199,11 @@ model Resource {
   mime_type   String?
   created_at  DateTime     @default(now())
 
-  workbench      Workbench        @relation(fields: [workbenchId], references: [id])
-  workspace      Workspace        @relation(fields: [workspaceId], references: [id])
-  resourceGroups ResourceGroups[] @relation("ResourceToGroup")
+  workspace      Workspace           @relation(fields: [workspaceId], references: [id])
+  resourceGroups ResourceGroups[]    @relation("ResourceToGroup")
+  workbenches    WorkbenchResource[]
 
-  @@index([workspaceId, workbenchId])
+  @@index([workspaceId])
 }
 
 // ============= FLASHCARDS =============

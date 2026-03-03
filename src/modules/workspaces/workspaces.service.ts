@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { CreateWorkspaceDto } from './dto/create-workspace.dto.js';
 import { UpdateWorkspaceDto } from './dto/update-workspace.dto.js';
 import { DatabaseService } from '../../common/database/database.service.js';
@@ -19,7 +19,9 @@ export class WorkspacesService {
 
   async findAll(userId: number) {
     return await this.db.workspace.findMany({
-      where: { ownerId: userId },
+      where: {
+        OR: [{ ownerId: userId }, { members: { some: { userId } } }],
+      },
       omit: { ownerId: true },
     });
   }
@@ -45,5 +47,24 @@ export class WorkspacesService {
     return {
       message: 'Workspace deleted successfully',
     };
+  }
+
+  async join(userId: number, workspaceId: number) {
+    const workspace = await this.db.workspace.findUnique({
+      where: { id: workspaceId },
+    });
+    if (!workspace) throw new NotFoundException('Workspace not found');
+
+    if (workspace.ownerId === userId) {
+      return { message: 'You already own this workspace' };
+    }
+
+    await this.db.workspaceMember.upsert({
+      where: { workspaceId_userId: { workspaceId, userId } },
+      update: {},
+      create: { workspaceId, userId },
+    });
+
+    return { message: 'Joined workspace successfully' };
   }
 }
