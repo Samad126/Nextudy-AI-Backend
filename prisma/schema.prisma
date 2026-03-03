@@ -73,11 +73,12 @@ model User {
 }
 
 model Workspace {
-  id         Int      @id @default(autoincrement())
-  name       String
-  ownerId    Int
-  created_at DateTime @default(now())
-  updated_at DateTime @updatedAt
+  id          Int      @id @default(autoincrement())
+  name        String
+  description String?
+  ownerId     Int
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
 
   owner         User              @relation(fields: [ownerId], references: [id])
   members       WorkspaceMember[]
@@ -169,6 +170,12 @@ model Workbench {
 
 // ============= RESOURCES =============
 
+model ResourceGroups {
+  id        Int        @id @default(autoincrement())
+  title     String     @unique
+  resources Resource[] @relation("ResourceToGroup")
+}
+
 model Resource {
   id          Int          @id @default(autoincrement())
   workbenchId Int
@@ -180,8 +187,9 @@ model Resource {
   mime_type   String?
   created_at  DateTime     @default(now())
 
-  workbench Workbench @relation(fields: [workbenchId], references: [id])
-  workspace Workspace @relation(fields: [workspaceId], references: [id])
+  workbench      Workbench        @relation(fields: [workbenchId], references: [id])
+  workspace      Workspace        @relation(fields: [workspaceId], references: [id])
+  resourceGroups ResourceGroups[] @relation("ResourceToGroup")
 
   @@index([workspaceId, workbenchId])
 }
