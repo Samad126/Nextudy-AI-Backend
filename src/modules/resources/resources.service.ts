@@ -4,13 +4,14 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { DatabaseService } from '../../common/database/database.service.js';
-import {
-  ResourceType,
-  WorkspaceMemberRole,
-} from '../../../generated/prisma/client.js';
+import { ResourceType } from '../../../generated/prisma/client.js';
 import { unlink } from 'fs/promises';
 import { CreateResourceGroupDto } from './dto/create-resource-group.dto.js';
 import { UpdateResourceGroupDto } from './dto/update-resource-group.dto.js';
+import {
+  ownerOrEditorFilter,
+  anyMemberFilter,
+} from '../../common/utils/workspace-filters.js';
 
 @Injectable()
 export class ResourcesService {
@@ -23,28 +24,9 @@ export class ResourcesService {
     return ResourceType.DOC;
   }
 
-  private ownerOrEditorFilter(userId: number) {
-    return {
-      OR: [
-        { ownerId: userId },
-        {
-          members: {
-            some: { userId, role: WorkspaceMemberRole.editor },
-          },
-        },
-      ],
-    };
-  }
-
-  private anyMemberFilter(userId: number) {
-    return {
-      OR: [{ ownerId: userId }, { members: { some: { userId } } }],
-    };
-  }
-
   async create(userId: number, workspaceId: number, file: Express.Multer.File) {
     const workspace = await this.db.workspace.findFirst({
-      where: { id: workspaceId, ...this.ownerOrEditorFilter(userId) },
+      where: { id: workspaceId, ...ownerOrEditorFilter(userId) },
     });
     if (!workspace) throw new ForbiddenException('Access denied');
 
@@ -63,7 +45,7 @@ export class ResourcesService {
 
   async findAll(userId: number, workspaceId: number) {
     const workspace = await this.db.workspace.findFirst({
-      where: { id: workspaceId, ...this.anyMemberFilter(userId) },
+      where: { id: workspaceId, ...anyMemberFilter(userId) },
     });
 
     if (!workspace) throw new NotFoundException('Resources not found');
@@ -78,7 +60,7 @@ export class ResourcesService {
     const resource = await this.db.resource.findFirst({
       where: {
         id: resourceId,
-        workspace: this.anyMemberFilter(userId),
+        workspace: anyMemberFilter(userId),
       },
     });
     if (!resource) throw new NotFoundException('Resource not found');
@@ -89,7 +71,7 @@ export class ResourcesService {
     const resource = await this.db.resource.findFirst({
       where: {
         id: resourceId,
-        workspace: this.ownerOrEditorFilter(userId),
+        workspace: ownerOrEditorFilter(userId),
       },
     });
     if (!resource) throw new NotFoundException('Resource not found');
@@ -102,7 +84,7 @@ export class ResourcesService {
 
   async findAllGroups(userId: number, workspaceId: number) {
     const workspace = await this.db.workspace.findFirst({
-      where: { id: workspaceId, ...this.anyMemberFilter(userId) },
+      where: { id: workspaceId, ...anyMemberFilter(userId) },
     });
 
     if (!workspace) throw new NotFoundException('Resource Groups not found');
@@ -120,7 +102,7 @@ export class ResourcesService {
     const { workspaceId, ...groupData } = createResourceGroupDto;
 
     const workspace = await this.db.workspace.findFirst({
-      where: { id: workspaceId, ...this.ownerOrEditorFilter(userId) },
+      where: { id: workspaceId, ...ownerOrEditorFilter(userId) },
     });
     if (!workspace) throw new ForbiddenException('Access denied');
 
@@ -137,7 +119,7 @@ export class ResourcesService {
     const group = await this.db.resourceGroups.findFirst({
       where: {
         id: groupId,
-        workspace: this.ownerOrEditorFilter(userId),
+        workspace: ownerOrEditorFilter(userId),
       },
     });
     if (!group) throw new NotFoundException('Resource group not found');
@@ -155,7 +137,7 @@ export class ResourcesService {
   ) {
     const [group, resource] = await Promise.all([
       this.db.resourceGroups.findFirst({
-        where: { id: groupId, workspace: this.ownerOrEditorFilter(userId) },
+        where: { id: groupId, workspace: ownerOrEditorFilter(userId) },
       }),
       this.db.resource.findFirst({ where: { id: resourceId } }),
     ]);
@@ -175,7 +157,7 @@ export class ResourcesService {
   ) {
     const [group, resource] = await Promise.all([
       this.db.resourceGroups.findFirst({
-        where: { id: groupId, workspace: this.ownerOrEditorFilter(userId) },
+        where: { id: groupId, workspace: ownerOrEditorFilter(userId) },
       }),
       this.db.resource.findFirst({ where: { id: resourceId } }),
     ]);
