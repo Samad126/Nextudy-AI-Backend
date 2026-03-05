@@ -41,8 +41,8 @@ export class WorkspacesService {
     };
   }
 
-  async remove(id: number) {
-    await this.db.workspace.delete({ where: { id } });
+  async remove(userId: number, id: number) {
+    await this.db.workspace.delete({ where: { id, ownerId: userId } });
 
     return {
       message: 'Workspace deleted successfully',
