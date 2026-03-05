@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { CreateWorkbenchDto } from './dto/create-workbench.dto.js';
 import { UpdateWorkbenchDto } from './dto/update-workbench.dto.js';
+import { SetResourcesDto } from './dto/set-resources.dto.js';
 import { DatabaseService } from '../../common/database/database.service.js';
 import {
   anyMemberFilter,
@@ -77,5 +78,40 @@ export class WorkbenchesService {
 
     await this.db.workbench.delete({ where: { id: workbenchId } });
     return { message: 'Workbench deleted successfully' };
+  }
+
+  async getResources(userId: number, workbenchId: number) {
+    const workbench = await this.db.workbench.findFirst({
+      where: { id: workbenchId, workspace: { ...anyMemberFilter(userId) } },
+    });
+    if (!workbench) throw new NotFoundException('Workbench not found');
+
+    return this.db.workbenchResource.findMany({
+      where: { workbenchId },
+      include: { resource: true },
+    });
+  }
+
+  async setResources(
+    userId: number,
+    workbenchId: number,
+    { resourceIds }: SetResourcesDto,
+  ) {
+    const workbench = await this.db.workbench.findFirst({
+      where: { id: workbenchId, workspace: { ...ownerOrEditorFilter(userId) } },
+    });
+    if (!workbench) throw new NotFoundException('Workbench not found');
+
+    await this.db.$transaction([
+      this.db.workbenchResource.deleteMany({ where: { workbenchId } }),
+      this.db.workbenchResource.createMany({
+        data: resourceIds.map((resourceId) => ({ workbenchId, resourceId })),
+      }),
+    ]);
+
+    return this.db.workbenchResource.findMany({
+      where: { workbenchId },
+      include: { resource: true },
+    });
   }
 }

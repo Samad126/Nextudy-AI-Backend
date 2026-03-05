@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Post,
+  Put,
   Body,
   Patch,
   Param,
@@ -12,6 +13,7 @@ import {
 import { WorkbenchesService } from './workbenches.service.js';
 import { CreateWorkbenchDto } from './dto/create-workbench.dto.js';
 import { UpdateWorkbenchDto } from './dto/update-workbench.dto.js';
+import { SetResourcesDto } from './dto/set-resources.dto.js';
 import { ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { GetUser } from '../../common/decorators/get-user.decorator.js';
 
@@ -60,5 +62,26 @@ export class WorkbenchesController {
     @GetUser('sub') userId: number,
   ) {
     return this.workbenchesService.remove(userId, id);
+  }
+
+  @Get(':id/resources')
+  @ApiOperation({ summary: 'Get all resources in a workbench' })
+  getResources(
+    @GetUser('sub') userId: number,
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    return this.workbenchesService.getResources(userId, id);
+  }
+
+  @Put(':id/resources')
+  @ApiOperation({
+    summary: 'Set resources for a workbench (replaces existing)',
+  })
+  setResources(
+    @GetUser('sub') userId: number,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() setResourcesDto: SetResourcesDto,
+  ) {
+    return this.workbenchesService.setResources(userId, id, setResourcesDto);
   }
 }
