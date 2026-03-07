@@ -1,94 +1,44 @@
+import { BadRequestException, Injectable } from '@nestjs/common';
 import {
-  BadRequestException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
-import {
-  AnswerSchema,
-  AnswerSource,
   CreateQuestionDto,
   GenerationMode,
-  GenerationScope,
 } from './dto/create-question.dto.js';
 import { UpdateQuestionDto } from './dto/update-question.dto.js';
-import {
-  buildAutoPrompt,
-  buildManualPrompt,
-  GeneratedQuestionsResponse,
-  QuestionRaw,
-} from './questions.prompts.js';
+import { buildAutoPrompt, buildManualPrompt } from './questions.prompts.js';
+import type { GeneratedQuestionsResponse } from './questions.prompts.js';
+import { validateQuestionOptions } from './questions.validators.js';
+import { QuestionsRepository } from './questions.repository.js';
 import { GeminiService } from '../gemini/gemini.service.js';
-import { DatabaseService } from '../../common/database/database.service.js';
-import { Difficulty, QuestionType } from '../../../generated/prisma/client.js';
-
-// ── Service ────────────────────────────────────────────────────────────────
+import { WorkbenchesService } from '../workbenches/workbenches.service.js';
 
 @Injectable()
 export class QuestionsService {
   constructor(
     private readonly gemini: GeminiService,
-    private readonly db: DatabaseService,
+    private readonly workbenches: WorkbenchesService,
+    private readonly repo: QuestionsRepository,
   ) {}
 
-  async create(createQuestionDto: CreateQuestionDto) {
+  async create(userId: number, createQuestionDto: CreateQuestionDto) {
     const {
-      workspaceId,
       workbenchId,
       generationMode,
       questions,
-      answerSchema,
       answerSource,
+      minWords = 250,
+      answerLength,
+      answerSchema,
       difficulty,
       generationScope,
       count,
-      minWords = 250,
-      answerLength,
     } = createQuestionDto;
 
-    // 0. Validate option combinations
-    if (
-      generationMode === GenerationMode.USER_PROVIDED &&
-      (answerSchema || difficulty || generationScope || count)
-    ) {
-      throw new BadRequestException(
-        'answerSchema, difficulty, generationScope, and count are only valid for AI_GENERATED mode. Remove them when using USER_PROVIDED mode.',
-      );
-    }
-    if (
-      generationMode === GenerationMode.AI_GENERATED &&
-      generationScope === GenerationScope.EXHAUSTIVE &&
-      count !== undefined
-    ) {
-      throw new BadRequestException(
-        'count is ignored when generationScope is EXHAUSTIVE. Remove count or switch to generationScope FIXED.',
-      );
-    }
-    if (answerLength && answerSchema === AnswerSchema.MCQ) {
-      throw new BadRequestException(
-        'answerLength is only applicable to open-ended questions. Remove it or switch answerSchema to OPEN_ENDED or MIXED.',
-      );
-    }
-    if (
-      answerSource === AnswerSource.FILE &&
-      answerSchema === AnswerSchema.MCQ
-    ) {
-      throw new BadRequestException(
-        'answerSource FILE (verbatim) is incompatible with answerSchema MCQ. MCQ distractors are intentionally wrong answers and cannot be sourced verbatim from the document. Use answerSource MIXED or AI instead, or switch to OPEN_ENDED questions.',
-      );
-    }
+    // ── 0. Validate ──────────────────────────────────────────────────────
+    validateQuestionOptions(createQuestionDto);
 
-    // 1. Verify workbench exists and fetch its Gemini-uploaded resources
-    const workbench = await this.db.workbench.findFirst({
-      where: { id: workbenchId, workspaceId },
-    });
-    if (!workbench) throw new NotFoundException('Workbench not found');
-
-    const workbenchResources = await this.db.workbenchResource.findMany({
-      where: { workbenchId },
-      include: { resource: true },
-    });
-
-    const files = workbenchResources
+    // ── 1. Fetch Gemini-uploaded resources ────────────
+    const resources = await this.workbenches.getResources(userId, workbenchId);
+    const files = resources
       .filter((wr) => wr.resource.store_id && wr.resource.mime_type)
       .map((wr) => ({
         uri: wr.resource.store_id as string,
@@ -101,7 +51,8 @@ export class QuestionsService {
       );
     }
 
-    // 2. Build prompt
+    // ── 2. Build prompt ──────────────────────────────────────────────────
+
     const prompt =
       generationMode === GenerationMode.USER_PROVIDED
         ? buildManualPrompt(questions!, answerSource)
@@ -115,107 +66,28 @@ export class QuestionsService {
             answerLength,
           });
 
-    // 3. Call Gemini
+    // ── 3. Call Gemini ───────────────────────────────────────────────────
+
     const rawText = await this.gemini.generateWithFiles(prompt, files);
 
-    // 4. Parse JSON (strip any accidental markdown fences)
-    let parsed: GeneratedQuestionsResponse;
-    try {
-      const cleaned = rawText
-        .replace(/^```(?:json)?\s*/i, '')
-        .replace(/\s*```$/, '')
-        .trim();
-      parsed = JSON.parse(cleaned) as GeneratedQuestionsResponse;
-    } catch {
-      throw new BadRequestException(
-        `Gemini returned invalid JSON. Raw response: ${rawText.slice(0, 300)}`,
-      );
-    }
+    // ── 4. Parse & validate Gemini response ──────────────────────────────
+    const parsed =
+      this.gemini.parseJsonResponse<GeneratedQuestionsResponse>(rawText);
 
     if (parsed.error === 'INSUFFICIENT_CONTENT') {
       throw new BadRequestException(
         `Source material is too short. Minimum required: ${minWords} words (roughly one page of handwritten text).`,
       );
     }
-
     if (!Array.isArray(parsed.questions) || parsed.questions.length === 0) {
       throw new BadRequestException('Gemini returned no questions.');
     }
 
-    // 5. Persist to DB
-    const created = await Promise.all(
-      parsed.questions.map((q) =>
-        this.saveQuestion(q, workspaceId, workbenchId),
-      ),
-    );
-
-    return created;
+    // ── 5. Persist to DB ─────────────────────────────────────────────────
+    return this.repo.persistQuestions(parsed.questions, workbenchId);
   }
 
-  private async saveQuestion(
-    q: QuestionRaw,
-    workspaceId: number,
-    workbenchId: number,
-  ) {
-    const difficultyMap: Record<string, Difficulty> = {
-      EASY: Difficulty.EASY,
-      MEDIUM: Difficulty.MEDIUM,
-      HARD: Difficulty.HARD,
-    };
-
-    const question = await this.db.question.create({
-      data: {
-        workspaceId,
-        workbenchId,
-        title: q.title,
-        question_type:
-          q.question_type === 'mcq'
-            ? QuestionType.mcq
-            : QuestionType.open_ended,
-        answer_source:
-          q.answer_source === 'file' ? AnswerSource.FILE : AnswerSource.AI,
-        difficulty: difficultyMap[q.difficulty] ?? Difficulty.MEDIUM,
-        explanation: q.explanation ?? null,
-      },
-    });
-
-    if (q.question_type === 'mcq' && q.choices?.length) {
-      await this.db.mCQChoice.createMany({
-        data: q.choices.map((c) => ({
-          question_id: question.id,
-          choice_text: c.choice_text,
-          choice_order: c.choice_order,
-          is_correct: c.is_correct,
-        })),
-      });
-    }
-
-    if (q.question_type === 'open_ended' && q.sample_answer) {
-      await this.db.openEndedAnswer.create({
-        data: {
-          question_id: question.id,
-          sample_answer: q.sample_answer,
-          gradingKeywords: q.grading_keywords?.length
-            ? {
-                create: q.grading_keywords.map((k) => ({
-                  keyword: k.keyword,
-                  weight: k.weight,
-                  is_required: k.is_required,
-                })),
-              }
-            : undefined,
-        },
-      });
-    }
-
-    return this.db.question.findUnique({
-      where: { id: question.id },
-      include: {
-        mcqChoices: true,
-        openEndedAnswer: { include: { gradingKeywords: true } },
-      },
-    });
-  }
+  // ── CRUD placeholders ────────────────────────────────────────────────────
 
   findAll() {
     return `This action returns all questions`;

@@ -1,6 +1,6 @@
 import { GoogleGenerativeAI, GenerativeModel } from '@google/generative-ai';
 import { GoogleAIFileManager } from '@google/generative-ai/server';
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 
 @Injectable()
 export class GeminiService {
@@ -54,6 +54,20 @@ export class GeminiService {
     });
 
     return result.response.text();
+  }
+
+  parseJsonResponse<T>(rawText: string): T {
+    const cleaned = rawText
+      .replace(/^```(?:json)?\s*/i, '')
+      .replace(/\s*```$/, '')
+      .trim();
+    try {
+      return JSON.parse(cleaned) as T;
+    } catch {
+      throw new BadRequestException(
+        `Gemini returned invalid JSON. Raw response: ${rawText.slice(0, 300)}`,
+      );
+    }
   }
 
   async generateResponse() {

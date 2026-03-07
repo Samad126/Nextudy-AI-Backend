@@ -11,6 +11,7 @@ import { QuestionsService } from './questions.service.js';
 import { CreateQuestionDto } from './dto/create-question.dto.js';
 import { UpdateQuestionDto } from './dto/update-question.dto.js';
 import { ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
+import { GetUser } from 'src/common/decorators/get-user.decorator.js';
 
 @Controller('questions')
 @ApiBearerAuth('accessToken')
@@ -19,8 +20,11 @@ export class QuestionsController {
 
   @Post()
   @ApiOperation({ summary: 'Create new questions' })
-  create(@Body() createQuestionDto: CreateQuestionDto) {
-    return this.questionsService.create(createQuestionDto);
+  create(
+    @GetUser('sub') userId: number,
+    @Body() createQuestionDto: CreateQuestionDto,
+  ) {
+    return this.questionsService.create(userId, createQuestionDto);
   }
 
   @Get()

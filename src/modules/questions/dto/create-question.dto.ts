@@ -66,12 +66,6 @@ export class CreateQuestionDto {
   @Type(() => Number)
   @IsInt()
   @IsPositive()
-  workspaceId: number;
-
-  @ApiProperty()
-  @Type(() => Number)
-  @IsInt()
-  @IsPositive()
   workbenchId: number;
 
   @ApiProperty({ enum: GenerationMode })

@@ -92,7 +92,6 @@ model Workspace {
   workbenches    Workbench[]
   resources      Resource[]
   flashcards     Flashcard[]
-  questions      Question[]
   chatHistories  ChatHistory[]
   quizzes        Quiz[]
   resourceGroups ResourceGroups[]
@@ -191,7 +190,7 @@ model WorkbenchResource {
 model ResourceGroups {
   id          Int        @id @default(autoincrement())
   workspaceId Int
-  name       String     @unique
+  name        String     @unique
   resources   Resource[] @relation("ResourceToGroup")
   workspace   Workspace  @relation(fields: [workspaceId], references: [id])
 }
@@ -234,7 +233,6 @@ model Flashcard {
 model Question {
   id            Int          @id @default(autoincrement())
   workbenchId   Int
-  workspaceId   Int
   title         String
   question_type QuestionType
   answer_source AnswerSource @default(ai)
@@ -243,12 +241,11 @@ model Question {
   created_at    DateTime     @default(now())
 
   workbench       Workbench        @relation(fields: [workbenchId], references: [id])
-  workspace       Workspace        @relation(fields: [workspaceId], references: [id])
   mcqChoices      MCQChoice[]
   openEndedAnswer OpenEndedAnswer?
   quizQuestions   QuizQuestion[]
 
-  @@index([workspaceId, workbenchId])
+  @@index([workbenchId])
   @@index([workbenchId, question_type])
 }
 

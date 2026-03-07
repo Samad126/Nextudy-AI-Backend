@@ -8,5 +8,6 @@ import { GeminiModule } from '../gemini/gemini.module.js';
   imports: [DatabaseModule, GeminiModule],
   controllers: [WorkbenchesController],
   providers: [WorkbenchesService],
+  exports: [WorkbenchesService],
 })
 export class WorkbenchesModule {}
