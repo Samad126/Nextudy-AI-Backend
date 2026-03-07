@@ -12,10 +12,14 @@ import {
   ownerOrEditorFilter,
   anyMemberFilter,
 } from '../../common/utils/workspace-filters.js';
+import { GeminiService } from '../gemini/gemini.service.js';
 
 @Injectable()
 export class ResourcesService {
-  constructor(private db: DatabaseService) {}
+  constructor(
+    private db: DatabaseService,
+    private gemini: GeminiService,
+  ) {}
 
   private getResourceType(mimetype: string): ResourceType {
     if (mimetype === 'application/pdf') return ResourceType.PDF;
@@ -30,6 +34,12 @@ export class ResourcesService {
     });
     if (!workspace) throw new ForbiddenException('Access denied');
 
+    const storeId = await this.gemini.uploadFile(
+      file.path,
+      file.mimetype,
+      file.originalname,
+    );
+
     return this.db.resource.create({
       data: {
         workspaceId,
@@ -38,6 +48,7 @@ export class ResourcesService {
         type: this.getResourceType(file.mimetype),
         file_size: file.size,
         mime_type: file.mimetype,
+        store_id: storeId,
       },
       omit: { filePath: true },
     });
@@ -76,7 +87,10 @@ export class ResourcesService {
     });
     if (!resource) throw new NotFoundException('Resource not found');
 
-    await unlink(resource.filePath);
+    await Promise.all([
+      unlink(resource.filePath),
+      resource.store_id ? this.gemini.deleteFile(resource.store_id) : null,
+    ]);
     await this.db.resource.delete({ where: { id: resourceId } });
 
     return { message: 'Resource deleted successfully' };

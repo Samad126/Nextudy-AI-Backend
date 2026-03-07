@@ -1,17 +1,41 @@
 import { GoogleGenerativeAI, GenerativeModel } from '@google/generative-ai';
+import { GoogleAIFileManager } from '@google/generative-ai/server';
 import { Injectable } from '@nestjs/common';
 
 @Injectable()
 export class GeminiService {
   private genAI: GoogleGenerativeAI;
   private model: GenerativeModel;
+  private fileManager: GoogleAIFileManager;
 
   constructor() {
     const apiKey = process.env.GEMINI_API_KEY!;
     this.genAI = new GoogleGenerativeAI(apiKey);
+    this.fileManager = new GoogleAIFileManager(apiKey);
     this.model = this.genAI.getGenerativeModel({
       model: 'gemini-3.1-flash-lite-preview',
     });
+  }
+
+  async uploadFile(
+    filePath: string,
+    mimeType: string,
+    displayName: string,
+  ): Promise<string> {
+    const result = await this.fileManager.uploadFile(filePath, {
+      mimeType,
+      displayName,
+    });
+    return result.file.uri;
+  }
+
+  async deleteFile(storeId: string): Promise<void> {
+    // storeId is the full URI like "https://generativelanguage.googleapis.com/v1beta/files/..."
+    // extract the file name (files/<id>) from the URI
+    const match = storeId.match(/\/files\/([^/]+)$/);
+    if (match) {
+      await this.fileManager.deleteFile(`files/${match[1]}`);
+    }
   }
 
   async generateResponse() {
