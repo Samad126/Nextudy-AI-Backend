@@ -10,13 +10,13 @@ export class GeminiService {
     const apiKey = process.env.GEMINI_API_KEY!;
     this.genAI = new GoogleGenerativeAI(apiKey);
     this.model = this.genAI.getGenerativeModel({
-      model: 'gemini-2.5-flash-lite',
+      model: 'gemini-3.1-flash-lite-preview',
     });
   }
 
   async generateResponse() {
     try {
-      const prompt = `hi how are u`;
+      const prompt = `azərbaycanca bilirsən?`;
       const result = await this.model.generateContent({
         contents: [{ role: 'user', parts: [{ text: prompt }] }],
       });
@@ -34,3 +34,38 @@ export class GeminiService {
     }
   }
 }
+
+/* 
+    status: 429,
+  statusText: 'Too Many Requests',
+  errorDetails: [
+    {
+      '@type': 'type.googleapis.com/google.rpc.Help',
+      links: [
+        {
+          description: 'Learn more about Gemini API quotas',
+          url: 'https://ai.google.dev/gemini-api/docs/rate-limits'
+        }
+      ]
+    },
+    {
+      '@type': 'type.googleapis.com/google.rpc.QuotaFailure',
+      violations: [
+        {
+          quotaMetric: 'generativelanguage.googleapis.com/generate_content_free_tier_requests',
+          quotaId: 'GenerateRequestsPerMinutePerProjectPerModel-FreeTier',
+          quotaDimensions: {
+            model: 'gemini-3.1-flash-lite',
+            location: 'global'
+          },
+          quotaValue: '15'
+        }
+      ]
+    },
+    {
+      '@type': 'type.googleapis.com/google.rpc.RetryInfo',
+      retryDelay: '11s'
+    }
+  ]
+}
+*/
