@@ -11,6 +11,7 @@ import { QuizzesModule } from './modules/quizzes/quizzes.module.js';
 import { WorkbenchesModule } from './modules/workbenches/workbenches.module.js';
 import { SettingsModule } from './modules/settings/settings.module.js';
 import { ConfigModule } from '@nestjs/config';
+import { QuestionsModule } from './modules/questions/questions.module.js';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { ConfigModule } from '@nestjs/config';
     WorkbenchesModule,
     SettingsModule,
     ConfigModule.forRoot({ isGlobal: true }),
+    QuestionsModule,
   ],
   providers: [
     {

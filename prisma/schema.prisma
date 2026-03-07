@@ -48,6 +48,11 @@ enum QuestionType {
   open_ended
 }
 
+enum AnswerSource {
+  file
+  ai
+}
+
 enum MessageRole {
   user
   assistant
@@ -232,6 +237,7 @@ model Question {
   workspaceId   Int
   title         String
   question_type QuestionType
+  answer_source AnswerSource @default(ai)
   explanation   String?
   difficulty    Difficulty?
   created_at    DateTime     @default(now())
@@ -253,7 +259,7 @@ model MCQChoice {
   choice_order Int
   is_correct   Boolean @default(false)
 
-  question Question @relation(fields: [question_id], references: [id])
+  question Question @relation(fields: [question_id], references: [id], onDelete: Cascade)
 
   @@unique([question_id, choice_order])
   @@index([question_id])
@@ -264,7 +270,7 @@ model OpenEndedAnswer {
   question_id   Int    @unique
   sample_answer String
 
-  question        Question         @relation(fields: [question_id], references: [id])
+  question        Question         @relation(fields: [question_id], references: [id], onDelete: Cascade)
   gradingKeywords GradingKeyword[]
 }
 
@@ -275,7 +281,7 @@ model GradingKeyword {
   weight               Decimal @default(1.0) @db.Decimal(3, 2)
   is_required          Boolean @default(false)
 
-  openEndedAnswer OpenEndedAnswer @relation(fields: [open_ended_answer_id], references: [id])
+  openEndedAnswer OpenEndedAnswer @relation(fields: [open_ended_answer_id], references: [id], onDelete: Cascade)
 
   @@unique([open_ended_answer_id, keyword])
 }

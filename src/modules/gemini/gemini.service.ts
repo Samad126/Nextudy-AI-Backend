@@ -38,6 +38,24 @@ export class GeminiService {
     }
   }
 
+  async generateWithFiles(
+    prompt: string,
+    files: { uri: string; mimeType: string }[],
+  ): Promise<string> {
+    const parts = [
+      ...files.map((f) => ({
+        fileData: { fileUri: f.uri, mimeType: f.mimeType },
+      })),
+      { text: prompt },
+    ];
+
+    const result = await this.model.generateContent({
+      contents: [{ role: 'user', parts }],
+    });
+
+    return result.response.text();
+  }
+
   async generateResponse() {
     try {
       const prompt = `azərbaycanca bilirsən?`;
