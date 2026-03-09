@@ -169,7 +169,6 @@ model Workbench {
   resources     WorkbenchResource[]
   questions     Question[]
   chatHistories ChatHistory[]
-  quizzes       Quiz[]
 
   @@index([workspaceId])
 }
@@ -287,31 +286,27 @@ model GradingKeyword {
 
 model Quiz {
   id          Int         @id @default(autoincrement())
-  workbenchId Int
   workspaceId Int
   title       String
   description String?
-  difficulty  Difficulty?
   created_at  DateTime    @default(now())
   updated_at  DateTime    @updatedAt
 
-  workbench Workbench      @relation(fields: [workbenchId], references: [id])
   workspace Workspace      @relation(fields: [workspaceId], references: [id])
   questions QuizQuestion[]
 
-  @@index([workspaceId, workbenchId])
+  @@index([workspaceId])
 }
 
 model QuizQuestion {
   id         Int @id @default(autoincrement())
   quizId     Int
   questionId Int
-  order      Int // display order within the quiz
 
   quiz     Quiz     @relation(fields: [quizId], references: [id], onDelete: Cascade)
   question Question @relation(fields: [questionId], references: [id], onDelete: Restrict)
 
-  @@unique([quizId, questionId]) // same question can't appear twice in one quiz
+  @@unique([quizId, questionId])
   @@index([quizId])
   @@index([questionId])
 }

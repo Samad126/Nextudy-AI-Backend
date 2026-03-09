@@ -1,34 +1,53 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Param,
+  Delete,
+  Query,
+  ParseIntPipe,
+} from '@nestjs/common';
 import { QuizzesService } from './quizzes.service.js';
 import { CreateQuizDto } from './dto/create-quiz.dto.js';
-import { UpdateQuizDto } from './dto/update-quiz.dto.js';
+import { ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
+import { GetUser } from '../../common/decorators/get-user.decorator.js';
 
+@ApiBearerAuth('accessToken')
 @Controller('quizzes')
 export class QuizzesController {
   constructor(private readonly quizzesService: QuizzesService) {}
 
   @Post()
-  create(@Body() createQuizDto: CreateQuizDto) {
-    return this.quizzesService.create(createQuizDto);
+  @ApiOperation({ summary: 'Create a quiz from question IDs' })
+  create(@GetUser('sub') userId: number, @Body() createQuizDto: CreateQuizDto) {
+    return this.quizzesService.create(userId, createQuizDto);
   }
 
   @Get()
-  findAll() {
-    return this.quizzesService.findAll();
+  @ApiOperation({ summary: 'Get all quizzes in a workspace' })
+  findAll(
+    @GetUser('sub') userId: number,
+    @Query('workspaceId', ParseIntPipe) workspaceId: number,
+  ) {
+    return this.quizzesService.findAll(userId, workspaceId);
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.quizzesService.findOne(+id);
-  }
-
-  @Patch(':id')
-  update(@Param('id') id: string, @Body() updateQuizDto: UpdateQuizDto) {
-    return this.quizzesService.update(+id, updateQuizDto);
+  @ApiOperation({ summary: 'Get a quiz by ID' })
+  findOne(
+    @GetUser('sub') userId: number,
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    return this.quizzesService.findOne(userId, id);
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.quizzesService.remove(+id);
+  @ApiOperation({ summary: 'Delete a quiz' })
+  remove(
+    @GetUser('sub') userId: number,
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    return this.quizzesService.remove(userId, id);
   }
 }

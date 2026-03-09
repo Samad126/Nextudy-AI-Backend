@@ -1,26 +1,94 @@
-import { Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { CreateQuizDto } from './dto/create-quiz.dto.js';
-import { UpdateQuizDto } from './dto/update-quiz.dto.js';
+import { DatabaseService } from '../../common/database/database.service.js';
+import {
+  anyMemberFilter,
+  ownerOrEditorFilter,
+} from '../../common/utils/workspace-filters.js';
 
 @Injectable()
 export class QuizzesService {
-  create(createQuizDto: CreateQuizDto) {
-    return 'This action adds a new quiz';
+  constructor(private readonly db: DatabaseService) {}
+
+  async create(userId: number, createQuizDto: CreateQuizDto) {
+    const { workspaceId, title, description, questionIds } = createQuizDto;
+
+    const workspace = await this.db.workspace.findFirst({
+      where: { id: workspaceId, ...ownerOrEditorFilter(userId) },
+    });
+    if (!workspace) throw new ForbiddenException('Access denied');
+
+    const questions = await this.db.question.findMany({
+      where: { id: { in: questionIds } },
+      select: { id: true },
+    });
+
+    if (questions.length !== questionIds.length) {
+      const foundIds = questions.map((q) => q.id);
+      const missing = questionIds.filter((id) => !foundIds.includes(id));
+      throw new BadRequestException(
+        `Questions not found: ${missing.join(', ')}`,
+      );
+    }
+
+    return this.db.quiz.create({
+      data: {
+        workspaceId,
+        title,
+        description,
+        questions: {
+          create: questionIds.map((questionId) => ({ questionId })),
+        },
+      },
+      include: {
+        questions: {
+          include: { question: true },
+        },
+      },
+    });
   }
 
-  findAll() {
-    return `This action returns all quizzes`;
+  async findAll(userId: number, workspaceId: number) {
+    const workspace = await this.db.workspace.findFirst({
+      where: { id: workspaceId, ...anyMemberFilter(userId) },
+    });
+    if (!workspace) throw new NotFoundException('Workspace not found');
+
+    return this.db.quiz.findMany({
+      where: { workspaceId },
+      include: {
+        questions: {
+          include: { question: true },
+        },
+      },
+    });
   }
 
-  findOne(id: number) {
-    return `This action returns a #${id} quiz`;
+  async findOne(userId: number, id: number) {
+    const quiz = await this.db.quiz.findFirst({
+      where: { id, workspace: { ...anyMemberFilter(userId) } },
+      include: {
+        questions: {
+          include: { question: true },
+        },
+      },
+    });
+    if (!quiz) throw new NotFoundException('Quiz not found');
+    return quiz;
   }
 
-  update(id: number, updateQuizDto: UpdateQuizDto) {
-    return `This action updates a #${id} quiz`;
-  }
+  async remove(userId: number, id: number) {
+    const quiz = await this.db.quiz.findFirst({
+      where: { id, workspace: { ...ownerOrEditorFilter(userId) } },
+    });
+    if (!quiz) throw new NotFoundException('Quiz not found');
 
-  remove(id: number) {
-    return `This action removes a #${id} quiz`;
+    await this.db.quiz.delete({ where: { id } });
+    return { message: 'Quiz deleted successfully' };
   }
 }

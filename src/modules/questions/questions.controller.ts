@@ -11,7 +11,7 @@ import { QuestionsService } from './questions.service.js';
 import { CreateQuestionDto } from './dto/create-question.dto.js';
 import { UpdateQuestionDto } from './dto/update-question.dto.js';
 import { ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
-import { GetUser } from 'src/common/decorators/get-user.decorator.js';
+import { GetUser } from '../../common/decorators/get-user.decorator.js';
 
 @Controller('questions')
 @ApiBearerAuth('accessToken')
