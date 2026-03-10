@@ -8,6 +8,7 @@ import { CreateFlashcardDto } from './dto/create-flashcard.dto.js';
 import { UpdateFlashcardDto } from './dto/update-flashcard.dto.js';
 import { DatabaseService } from '../../common/database/database.service.js';
 import { GeminiService } from '../gemini/gemini.service.js';
+import { ResourcesService } from '../resources/resources.service.js';
 import {
   anyMemberFilter,
   ownerOrEditorFilter,
@@ -26,6 +27,7 @@ export class FlashcardsService {
   constructor(
     private readonly db: DatabaseService,
     private readonly gemini: GeminiService,
+    private readonly resourcesSvc: ResourcesService,
   ) {}
 
   async create(userId: number, dto: CreateFlashcardDto) {
@@ -36,25 +38,11 @@ export class FlashcardsService {
     });
     if (!workspace) throw new ForbiddenException('Access denied');
 
-    await this.validateResourceIds(resourceIds, workspaceId);
-
-    const resources = await this.db.resource.findMany({
-      where: { id: { in: resourceIds }, workspaceId },
-      select: { store_id: true, mime_type: true },
-    });
-
-    const files = resources
-      .filter((r) => r.store_id && r.mime_type)
-      .map((r) => ({
-        uri: r.store_id as string,
-        mimeType: r.mime_type as string,
-      }));
-
-    if (files.length === 0) {
-      throw new BadRequestException(
-        'None of the selected resources have been uploaded to Gemini yet.',
-      );
-    }
+    await this.resourcesSvc.validateResourceIds(resourceIds, workspaceId);
+    const files = await this.resourcesSvc.getGeminiFiles(
+      resourceIds,
+      workspaceId,
+    );
 
     const prompt = buildFlashcardPrompt(count, difficulty);
     const rawText = await this.gemini.generateWithFiles(prompt, files);
@@ -127,7 +115,10 @@ export class FlashcardsService {
     const { resourceIds, ...scalars } = dto;
 
     if (resourceIds !== undefined) {
-      await this.validateResourceIds(resourceIds, flashcard.workspaceId);
+      await this.resourcesSvc.validateResourceIds(
+        resourceIds,
+        flashcard.workspaceId,
+      );
 
       return this.db.$transaction(async (tx) => {
         await tx.flashcardResource.deleteMany({ where: { flashcardId: id } });
@@ -159,22 +150,5 @@ export class FlashcardsService {
 
     await this.db.flashcard.delete({ where: { id } });
     return { message: 'Flashcard deleted successfully' };
-  }
-
-  private async validateResourceIds(
-    resourceIds: number[],
-    workspaceId: number,
-  ): Promise<void> {
-    const found = await this.db.resource.findMany({
-      where: { id: { in: resourceIds }, workspaceId },
-      select: { id: true },
-    });
-    if (found.length !== resourceIds.length) {
-      const foundIds = found.map((r) => r.id);
-      const missing = resourceIds.filter((id) => !foundIds.includes(id));
-      throw new BadRequestException(
-        `Resources not found or not in this workspace: ${missing.join(', ')}`,
-      );
-    }
   }
 }

@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -162,6 +163,51 @@ export class ResourcesService {
       where: { id: groupId },
       data: { resources: { connect: { id: resourceId } } },
     });
+  }
+
+  async validateResourceIds(
+    resourceIds: number[],
+    workspaceId: number,
+  ): Promise<void> {
+    const found = await this.db.resource.findMany({
+      where: { id: { in: resourceIds }, workspaceId },
+      select: { id: true },
+    });
+    if (found.length !== resourceIds.length) {
+      const foundIds = found.map((r) => r.id);
+      const missing = resourceIds.filter((id) => !foundIds.includes(id));
+      throw new BadRequestException(
+        `Resources not found or not in this workspace: ${missing.join(', ')}`,
+      );
+    }
+  }
+
+  async getGeminiFiles(
+    resourceIds: number[],
+    workspaceId: number,
+  ): Promise<{ uri: string; mimeType: string }[]> {
+    const resources = await this.db.resource.findMany({
+      where: { id: { in: resourceIds }, workspaceId },
+      select: { store_id: true, mime_type: true },
+    });
+    return this.mapToGeminiFiles(resources);
+  }
+
+  mapToGeminiFiles(
+    resources: Array<{ store_id: string | null; mime_type: string | null }>,
+  ): { uri: string; mimeType: string }[] {
+    const files = resources
+      .filter((r) => r.store_id && r.mime_type)
+      .map((r) => ({
+        uri: r.store_id as string,
+        mimeType: r.mime_type as string,
+      }));
+    if (files.length === 0) {
+      throw new BadRequestException(
+        'None of the selected resources have been uploaded to Gemini yet.',
+      );
+    }
+    return files;
   }
 
   async removeResourceFromGroup(
