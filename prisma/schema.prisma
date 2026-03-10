@@ -209,6 +209,7 @@ model Resource {
   workspace      Workspace           @relation(fields: [workspaceId], references: [id])
   resourceGroups ResourceGroups[]    @relation("ResourceToGroup")
   workbenches    WorkbenchResource[]
+  flashcards     FlashcardResource[]
 
   @@index([workspaceId])
 }
@@ -222,10 +223,25 @@ model Flashcard {
   answer      String
   difficulty  Difficulty?
   created_at  DateTime    @default(now())
+  updated_at  DateTime    @updatedAt
 
-  workspace Workspace @relation(fields: [workspaceId], references: [id])
+  workspace Workspace          @relation(fields: [workspaceId], references: [id])
+  resources FlashcardResource[]
 
   @@index([workspaceId])
+}
+
+model FlashcardResource {
+  flashcardId Int
+  resourceId  Int
+  added_at    DateTime @default(now())
+
+  flashcard Flashcard @relation(fields: [flashcardId], references: [id], onDelete: Cascade)
+  resource  Resource  @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+
+  @@id([flashcardId, resourceId])
+  @@index([flashcardId])
+  @@index([resourceId])
 }
 
 // ============= QUESTIONS =============
