@@ -76,6 +76,7 @@ model User {
   workspaceInvitesSent     WorkspaceInvite[] @relation("InviterRelation")
   workspaceInvitesReceived WorkspaceInvite[] @relation("InviteeRelation")
   workspaceMembers         WorkspaceMember[]
+  quizAttempts             QuizAttempt[]
 }
 
 model Workspace {
@@ -285,15 +286,16 @@ model GradingKeyword {
 // ============= QUIZ =============
 
 model Quiz {
-  id          Int         @id @default(autoincrement())
+  id          Int      @id @default(autoincrement())
   workspaceId Int
   title       String
   description String?
-  created_at  DateTime    @default(now())
-  updated_at  DateTime    @updatedAt
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
 
   workspace Workspace      @relation(fields: [workspaceId], references: [id])
   questions QuizQuestion[]
+  attempts  QuizAttempt[]
 
   @@index([workspaceId])
 }
@@ -303,12 +305,43 @@ model QuizQuestion {
   quizId     Int
   questionId Int
 
-  quiz     Quiz     @relation(fields: [quizId], references: [id], onDelete: Cascade)
-  question Question @relation(fields: [questionId], references: [id], onDelete: Restrict)
+  quiz            Quiz             @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  question        Question         @relation(fields: [questionId], references: [id], onDelete: Restrict)
+  userQuizAnswers UserQuizAnswer[]
 
   @@unique([quizId, questionId])
   @@index([quizId])
   @@index([questionId])
+}
+
+model QuizAttempt {
+  id           Int       @id @default(autoincrement())
+  quizId       Int
+  userId       Int
+  score        Int?
+  started_at   DateTime  @default(now())
+  completed_at DateTime?
+
+  quiz    Quiz             @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  user    User             @relation(fields: [userId], references: [id])
+  answers UserQuizAnswer[]
+
+  @@index([quizId])
+  @@index([userId])
+}
+
+model UserQuizAnswer {
+  id             Int     @id @default(autoincrement())
+  attemptId      Int
+  quizQuestionId Int
+  userAnswer     String
+  isCorrect      Boolean
+
+  attempt      QuizAttempt  @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  quizQuestion QuizQuestion @relation(fields: [quizQuestionId], references: [id], onDelete: Cascade)
+
+  @@unique([attemptId, quizQuestionId])
+  @@index([attemptId])
 }
 
 // ============= AI CHAT =============
