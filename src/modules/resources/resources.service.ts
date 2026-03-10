@@ -18,8 +18,8 @@ import { GeminiService } from '../gemini/gemini.service.js';
 @Injectable()
 export class ResourcesService {
   constructor(
-    private db: DatabaseService,
-    private gemini: GeminiService,
+    private readonly db: DatabaseService,
+    private readonly gemini: GeminiService,
   ) {}
 
   private getResourceType(mimetype: string): ResourceType {

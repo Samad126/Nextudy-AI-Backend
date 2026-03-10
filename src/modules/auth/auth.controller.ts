@@ -20,7 +20,7 @@ import type { User } from '../../../generated/prisma/client.js';
 
 @Controller('auth')
 export class AuthController {
-  constructor(private authService: AuthService) {}
+  constructor(private readonly authService: AuthService) {}
 
   @Public()
   @Post('register')

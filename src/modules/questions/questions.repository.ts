@@ -8,7 +8,7 @@ export class QuestionsRepository {
   constructor(private readonly db: DatabaseService) {}
 
   async persistQuestions(questions: QuestionRaw[], workbenchId: number) {
-    return this.db.$transaction(async (tx) => {
+    return await this.db.$transaction(async (tx) => {
       // 1. Bulk-create all question rows (1 DB call)
       const questionRows = await tx.question.createManyAndReturn({
         data: questions.map((q) => ({
@@ -93,7 +93,7 @@ export class QuestionsRepository {
       }
 
       // 5. Return all created questions with full relations (1 DB call)
-      return tx.question.findMany({
+      return await tx.question.findMany({
         where: { id: { in: questionRows.map((r) => r.id) } },
         include: {
           mcqChoices: true,

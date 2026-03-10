@@ -1,6 +1,7 @@
 import { GoogleGenerativeAI, GenerativeModel } from '@google/generative-ai';
 import { GoogleAIFileManager } from '@google/generative-ai/server';
 import { BadRequestException, Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class GeminiService {
@@ -8,8 +9,8 @@ export class GeminiService {
   private model: GenerativeModel;
   private fileManager: GoogleAIFileManager;
 
-  constructor() {
-    const apiKey = process.env.GEMINI_API_KEY!;
+  constructor(configService: ConfigService) {
+    const apiKey = configService.getOrThrow<string>('GEMINI_API_KEY');
     this.genAI = new GoogleGenerativeAI(apiKey);
     this.fileManager = new GoogleAIFileManager(apiKey);
     this.model = this.genAI.getGenerativeModel({

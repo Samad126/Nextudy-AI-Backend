@@ -5,7 +5,7 @@ import { DatabaseService } from '../../common/database/database.service.js';
 
 @Injectable()
 export class WorkspacesService {
-  constructor(private db: DatabaseService) {}
+  constructor(private readonly db: DatabaseService) {}
 
   async create(userId: number, createWorkspaceDto: CreateWorkspaceDto) {
     await this.db.workspace.create({

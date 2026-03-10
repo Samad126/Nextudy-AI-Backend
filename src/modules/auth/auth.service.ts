@@ -7,13 +7,15 @@ import {
 import * as argon2 from 'argon2';
 import { DatabaseService } from '../../common/database/database.service.js';
 import { JwtService } from '@nestjs/jwt';
+import { ConfigService } from '@nestjs/config';
 import { RegisterDto } from './dto/register.dto.js';
 
 @Injectable()
 export class AuthService {
   constructor(
-    private db: DatabaseService,
-    private jwtService: JwtService,
+    private readonly db: DatabaseService,
+    private readonly jwtService: JwtService,
+    private readonly configService: ConfigService,
   ) {}
 
   async register(dto: RegisterDto) {
@@ -89,11 +91,17 @@ export class AuthService {
     const [accessToken, refreshToken] = await Promise.all([
       this.jwtService.signAsync(
         { sub: userId, email },
-        { secret: process.env.JWT_ACCESS_SECRET, expiresIn: '1d' },
+        {
+          secret: this.configService.get<string>('JWT_ACCESS_SECRET'),
+          expiresIn: '1d',
+        },
       ),
       this.jwtService.signAsync(
         { sub: userId, email },
-        { secret: process.env.JWT_REFRESH_SECRET, expiresIn: '7d' },
+        {
+          secret: this.configService.get<string>('JWT_REFRESH_SECRET'),
+          expiresIn: '7d',
+        },
       ),
     ]);
     return { accessToken, refreshToken };
