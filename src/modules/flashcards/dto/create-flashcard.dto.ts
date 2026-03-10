@@ -3,9 +3,9 @@ import {
   IsArray,
   IsEnum,
   IsInt,
-  IsNotEmpty,
   IsOptional,
-  IsString,
+  Min,
+  Max,
   ArrayMinSize,
 } from 'class-validator';
 import { Difficulty } from '../../../../generated/prisma/client.js';
@@ -15,22 +15,23 @@ export class CreateFlashcardDto {
   @IsInt()
   workspaceId: number;
 
-  @ApiProperty()
-  @IsString()
-  @IsNotEmpty()
-  question: string;
-
-  @ApiProperty()
-  @IsString()
-  @IsNotEmpty()
-  answer: string;
-
   @ApiPropertyOptional({ enum: Difficulty })
   @IsOptional()
   @IsEnum(Difficulty)
   difficulty?: Difficulty;
 
-  @ApiProperty({ type: [Number], description: 'Resource IDs to attach' })
+  @ApiPropertyOptional({
+    description: 'Number of flashcards to generate (default: 5)',
+    minimum: 1,
+    maximum: 20,
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(20)
+  count?: number;
+
+  @ApiProperty({ type: [Number], description: 'Resource IDs to generate from' })
   @IsArray()
   @ArrayMinSize(1)
   @IsInt({ each: true })
