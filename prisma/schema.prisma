@@ -93,7 +93,6 @@ model Workspace {
   workbenches    Workbench[]
   resources      Resource[]
   flashcards     Flashcard[]
-  chatHistories  ChatHistory[]
   quizzes        Quiz[]
   resourceGroups ResourceGroups[]
 
@@ -365,7 +364,6 @@ model UserQuizAnswer {
 model ChatHistory {
   id            Int      @id @default(autoincrement())
   workbenchId   Int
-  workspaceId   Int
   title         String
   model_id      String
   system_prompt String?
@@ -373,10 +371,9 @@ model ChatHistory {
   updated_at    DateTime @updatedAt
 
   workbench Workbench @relation(fields: [workbenchId], references: [id])
-  workspace Workspace @relation(fields: [workspaceId], references: [id])
   messages  Message[]
 
-  @@index([workspaceId, workbenchId])
+  @@index([workbenchId])
 }
 
 model Message {
@@ -388,6 +385,7 @@ model Message {
   tokens_used     Int?
   finish_reason   String?
   error_message   String?
+  sources         Json?
   created_at      DateTime    @default(now())
 
   chatHistory ChatHistory @relation(fields: [chat_history_id], references: [id])

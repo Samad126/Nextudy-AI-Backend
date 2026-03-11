@@ -12,6 +12,7 @@ import { WorkbenchesModule } from './modules/workbenches/workbenches.module.js';
 import { SettingsModule } from './modules/settings/settings.module.js';
 import { ConfigModule } from '@nestjs/config';
 import { QuestionsModule } from './modules/questions/questions.module.js';
+import { ChatModule } from './modules/chat/chat.module.js';
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { QuestionsModule } from './modules/questions/questions.module.js';
     SettingsModule,
     ConfigModule.forRoot({ isGlobal: true }),
     QuestionsModule,
+    ChatModule,
   ],
   providers: [
     {

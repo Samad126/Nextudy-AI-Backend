@@ -71,24 +71,36 @@ export class GeminiService {
     }
   }
 
-  async generateResponse() {
-    try {
-      const prompt = `azərbaycanca bilirsən?`;
-      const result = await this.model.generateContent({
-        contents: [{ role: 'user', parts: [{ text: prompt }] }],
-      });
-      const response = result.response;
-      const text = response.text();
-      console.log(response);
-      const messageResponse = {
-        message: text,
-      };
+  async generateChatResponse(
+    userMessage: string,
+    history: { role: 'user' | 'model'; content: string }[],
+    files: { uri: string; mimeType: string }[],
+    jsonInstruction: string,
+    systemPrompt?: string,
+  ): Promise<string> {
+    const modelWithSystem = systemPrompt
+      ? this.genAI.getGenerativeModel({
+          model: 'gemini-3.1-flash-lite-preview',
+          systemInstruction: systemPrompt,
+        })
+      : this.model;
 
-      return messageResponse;
-    } catch (e) {
-      console.log(e);
-      throw e;
-    }
+    const geminiHistory = history.map((msg) => ({
+      role: msg.role,
+      parts: [{ text: msg.content }],
+    }));
+
+    const chat = modelWithSystem.startChat({ history: geminiHistory });
+
+    const userParts = [
+      ...files.map((f) => ({
+        fileData: { fileUri: f.uri, mimeType: f.mimeType },
+      })),
+      { text: `${userMessage}\n\n${jsonInstruction}` },
+    ];
+
+    const result = await chat.sendMessage(userParts);
+    return result.response.text();
   }
 }
 
