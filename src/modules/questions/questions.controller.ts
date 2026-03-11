@@ -6,10 +6,12 @@ import {
   Patch,
   Param,
   Delete,
+  ParseIntPipe,
 } from '@nestjs/common';
 import { QuestionsService } from './questions.service.js';
 import { CreateQuestionDto } from './dto/create-question.dto.js';
 import { UpdateQuestionDto } from './dto/update-question.dto.js';
+import { RegenerateQuestionDto } from './dto/regenerate-question.dto.js';
 import { ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { GetUser } from '../../common/decorators/get-user.decorator.js';
 
@@ -43,6 +45,16 @@ export class QuestionsController {
     @Body() updateQuestionDto: UpdateQuestionDto,
   ) {
     return this.questionsService.update(+id, updateQuestionDto);
+  }
+
+  @Post(':id/regenerate')
+  @ApiOperation({ summary: 'Regenerate a single question' })
+  regenerate(
+    @GetUser('sub') userId: number,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: RegenerateQuestionDto,
+  ) {
+    return this.questionsService.regenerate(userId, id, dto);
   }
 
   @Delete(':id')

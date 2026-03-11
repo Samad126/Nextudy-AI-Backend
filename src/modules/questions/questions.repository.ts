@@ -1,7 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { DatabaseService } from '../../common/database/database.service.js';
-import { QuestionType } from '../../../generated/prisma/client.js';
+import { Difficulty, QuestionType } from '../../../generated/prisma/client.js';
 import { QuestionRaw } from './questions.prompts.js';
+import { anyMemberFilter } from '../../common/utils/workspace-filters.js';
 
 @Injectable()
 export class QuestionsRepository {
@@ -95,6 +96,93 @@ export class QuestionsRepository {
       // 5. Return all created questions with full relations (1 DB call)
       return await tx.question.findMany({
         where: { id: { in: questionRows.map((r) => r.id) } },
+        include: {
+          mcqChoices: true,
+          openEndedAnswer: { include: { gradingKeywords: true } },
+        },
+      });
+    });
+  }
+
+  async findOneWithWorkbench(questionId: number, userId: number) {
+    const question = await this.db.question.findFirst({
+      where: {
+        id: questionId,
+        workbench: { workspace: anyMemberFilter(userId) },
+      },
+      include: {
+        workbench: true,
+        mcqChoices: true,
+        openEndedAnswer: { include: { gradingKeywords: true } },
+      },
+    });
+
+    if (!question) {
+      throw new NotFoundException(`Question #${questionId} not found.`);
+    }
+
+    return question;
+  }
+
+  async replaceQuestion(
+    questionId: number,
+    q: QuestionRaw,
+    difficulty: Difficulty,
+  ) {
+    return await this.db.$transaction(async (tx) => {
+      // 1. Update base question fields
+      await tx.question.update({
+        where: { id: questionId },
+        data: {
+          title: q.title,
+          question_type:
+            q.question_type === 'mcq'
+              ? QuestionType.mcq
+              : QuestionType.open_ended,
+          answer_source: q.answer_source === 'file' ? 'file' : 'ai',
+          difficulty,
+          explanation: q.explanation ?? null,
+        },
+      });
+
+      // 2. Delete existing type-specific data (cascade handles nested rows)
+      await tx.mCQChoice.deleteMany({ where: { question_id: questionId } });
+      await tx.openEndedAnswer.deleteMany({
+        where: { question_id: questionId },
+      });
+
+      // 3. Re-insert type-specific data
+      if (q.question_type === 'mcq' && q.choices?.length) {
+        await tx.mCQChoice.createMany({
+          data: q.choices.map((c) => ({
+            question_id: questionId,
+            choice_text: c.choice_text,
+            choice_order: c.choice_order,
+            is_correct: c.is_correct,
+          })),
+        });
+      }
+
+      if (q.question_type === 'open_ended' && q.sample_answer) {
+        const answer = await tx.openEndedAnswer.create({
+          data: { question_id: questionId, sample_answer: q.sample_answer },
+        });
+
+        if (q.grading_keywords?.length) {
+          await tx.gradingKeyword.createMany({
+            data: q.grading_keywords.map((k) => ({
+              open_ended_answer_id: answer.id,
+              keyword: k.keyword,
+              weight: k.weight,
+              is_required: k.is_required,
+            })),
+          });
+        }
+      }
+
+      // 4. Return updated question with relations
+      return tx.question.findUniqueOrThrow({
+        where: { id: questionId },
         include: {
           mcqChoices: true,
           openEndedAnswer: { include: { gradingKeywords: true } },

@@ -71,6 +71,17 @@ export class GeminiService {
     }
   }
 
+  toGeminiFiles(
+    resources: Array<{ store_id: string; mime_type: string }>,
+  ): { uri: string; mimeType: string }[] {
+    if (resources.length === 0) {
+      throw new BadRequestException(
+        'None of the selected resources have been uploaded to Gemini yet.',
+      );
+    }
+    return resources.map((r) => ({ uri: r.store_id, mimeType: r.mime_type }));
+  }
+
   async generateChatResponse(
     userMessage: string,
     history: { role: 'user' | 'model'; content: string }[],

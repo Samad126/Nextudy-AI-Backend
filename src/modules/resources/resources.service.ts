@@ -90,7 +90,7 @@ export class ResourcesService {
 
     await Promise.all([
       unlink(resource.filePath),
-      resource.store_id ? this.gemini.deleteFile(resource.store_id) : null,
+      this.gemini.deleteFile(resource.store_id),
     ]);
     await this.db.resource.delete({ where: { id: resourceId } });
 
@@ -190,24 +190,7 @@ export class ResourcesService {
       where: { id: { in: resourceIds }, workspaceId },
       select: { store_id: true, mime_type: true },
     });
-    return this.mapToGeminiFiles(resources);
-  }
-
-  mapToGeminiFiles(
-    resources: Array<{ store_id: string | null; mime_type: string | null }>,
-  ): { uri: string; mimeType: string }[] {
-    const files = resources
-      .filter((r) => r.store_id && r.mime_type)
-      .map((r) => ({
-        uri: r.store_id as string,
-        mimeType: r.mime_type as string,
-      }));
-    if (files.length === 0) {
-      throw new BadRequestException(
-        'None of the selected resources have been uploaded to Gemini yet.',
-      );
-    }
-    return files;
+    return this.gemini.toGeminiFiles(resources);
   }
 
   async removeResourceFromGroup(

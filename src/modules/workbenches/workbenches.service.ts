@@ -7,6 +7,7 @@ import { CreateWorkbenchDto } from './dto/create-workbench.dto.js';
 import { UpdateWorkbenchDto } from './dto/update-workbench.dto.js';
 import { SetResourcesDto } from './dto/set-resources.dto.js';
 import { DatabaseService } from '../../common/database/database.service.js';
+import { GeminiService } from '../gemini/gemini.service.js';
 import {
   anyMemberFilter,
   ownerOrEditorFilter,
@@ -14,7 +15,10 @@ import {
 
 @Injectable()
 export class WorkbenchesService {
-  constructor(private readonly db: DatabaseService) {}
+  constructor(
+    private readonly db: DatabaseService,
+    private readonly gemini: GeminiService,
+  ) {}
 
   async create(userId: number, createWorkbenchDto: CreateWorkbenchDto) {
     const { name, workspaceId } = createWorkbenchDto;
@@ -90,6 +94,13 @@ export class WorkbenchesService {
       where: { workbenchId },
       include: { resource: true },
     });
+  }
+
+  async getGeminiFiles(userId: number, workbenchId: number) {
+    const workbenchResources = await this.getResources(userId, workbenchId);
+    return this.gemini.toGeminiFiles(
+      workbenchResources.map((wr) => wr.resource),
+    );
   }
 
   async setResources(

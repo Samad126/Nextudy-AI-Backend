@@ -35,8 +35,8 @@ Guidelines:
 type WorkbenchResource = {
   id: number;
   name: string;
-  store_id: string | null;
-  mime_type: string | null;
+  store_id: string;
+  mime_type: string;
 };
 
 @Injectable()
@@ -59,12 +59,7 @@ export class ChatService {
     history: { role: 'user' | 'model'; content: string }[],
     resources: WorkbenchResource[],
   ) {
-    const files = resources
-      .filter((r) => r.store_id && r.mime_type)
-      .map((r) => ({
-        uri: r.store_id as string,
-        mimeType: r.mime_type as string,
-      }));
+    const files = this.gemini.toGeminiFiles(resources);
 
     const resourceMeta = resources.map((r) => ({ id: r.id, fileName: r.name }));
     const jsonInstruction = buildChatJsonInstruction(resourceMeta);

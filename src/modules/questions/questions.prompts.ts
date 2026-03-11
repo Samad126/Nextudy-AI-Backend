@@ -134,6 +134,89 @@ Return ONLY raw JSON — no markdown, no code fences, no extra text before or af
 ${JSON_SCHEMA}`;
 }
 
+export function buildRegeneratePrompt(dto: {
+  regenerateFromScratch: boolean;
+  originalTitle: string;
+  questionType: 'mcq' | 'open_ended';
+  difficulty: string;
+  answerSource: AnswerSource;
+}): string {
+  const {
+    regenerateFromScratch,
+    originalTitle,
+    questionType,
+    difficulty,
+    answerSource,
+  } = dto;
+
+  const scopeInstruction = regenerateFromScratch
+    ? `Generate a COMPLETELY NEW question on the same general subject area covered in the source material. The new question must have a different title, angle, and content from: "${originalTitle}".`
+    : `Keep the same question title exactly as-is: "${originalTitle}". Only regenerate the answer, choices, explanation, and related fields.`;
+
+  const typeInstruction =
+    questionType === 'mcq'
+      ? 'The question must be of type "mcq" with exactly 4 choices, one marked is_correct: true.'
+      : 'The question must be of type "open_ended" with a sample_answer and at least 3 grading_keywords.';
+
+  const answerSourceInstruction =
+    answerSource === AnswerSource.FILE
+      ? 'ANSWER SOURCE — FILE (VERBATIM): Correct answers, sample answers, explanations, and grading keywords must be copied verbatim or near-verbatim from the provided file content.'
+      : answerSource === AnswerSource.MIXED
+        ? 'ANSWER SOURCE — MIXED: Use verbatim text from the files for correct answers where possible, but freely use your broader knowledge for explanations, sample answers, and distractors.'
+        : 'ANSWER SOURCE — AI: Use the files as the topic source but write clear explanations, well-phrased distractors, and comprehensive sample answers using your broader knowledge.';
+
+  const singleQuestionSchema =
+    questionType === 'mcq'
+      ? `{
+  "questions": [
+    {
+      "title": "Question text",
+      "question_type": "mcq",
+      "difficulty": "${difficulty}",
+      "answer_source": "file" | "ai",
+      "explanation": "Brief explanation of why the answer is correct",
+      "choices": [
+        { "choice_text": "Option A", "choice_order": 1, "is_correct": false },
+        { "choice_text": "Option B", "choice_order": 2, "is_correct": true },
+        { "choice_text": "Option C", "choice_order": 3, "is_correct": false },
+        { "choice_text": "Option D", "choice_order": 4, "is_correct": false }
+      ]
+    }
+  ]
+}`
+      : `{
+  "questions": [
+    {
+      "title": "Question text",
+      "question_type": "open_ended",
+      "difficulty": "${difficulty}",
+      "answer_source": "file" | "ai",
+      "explanation": "Key concepts the answer should cover",
+      "sample_answer": "A well-structured sample answer",
+      "grading_keywords": [
+        { "keyword": "key concept", "weight": 1.0, "is_required": true },
+        { "keyword": "supporting idea", "weight": 0.5, "is_required": false }
+      ]
+    }
+  ]
+}`;
+
+  return `You are an expert educational content creator. Regenerate a single question based on the provided study material.
+
+INSTRUCTIONS:
+1. ${scopeInstruction}
+2. ${typeInstruction}
+3. The question difficulty must be "${difficulty}".
+4. ${answerSourceInstruction}
+5. The "explanation" field is mandatory.
+6. Set answer_source to "file" if the correct answer was taken verbatim from the document, or "ai" if you used your own knowledge.
+
+OUTPUT FORMAT:
+Return ONLY raw JSON — no markdown, no code fences, no extra text. The JSON must strictly follow this schema:
+
+${singleQuestionSchema}`;
+}
+
 export function buildManualPrompt(
   rawQuestions: string,
   answerSource: AnswerSource,

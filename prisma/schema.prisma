@@ -200,9 +200,9 @@ model Resource {
   name        String
   type        ResourceType
   filePath    String
-  store_id    String?
+  store_id    String
   file_size   Int?
-  mime_type   String?
+  mime_type   String
   created_at  DateTime     @default(now())
 
   workspace      Workspace           @relation(fields: [workspaceId], references: [id])
