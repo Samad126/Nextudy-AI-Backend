@@ -131,19 +131,19 @@ export class QuestionsService {
 
   // ── CRUD placeholders ────────────────────────────────────────────────────
 
-  findAll() {
-    return `This action returns all questions`;
+  findAll(userId: number, workbenchId: number) {
+    return this.repo.findAllByWorkbench(workbenchId, userId);
   }
 
   findOne(id: number) {
     return `This action returns a #${id} question`;
   }
 
-  update(id: number, updateQuestionDto: UpdateQuestionDto) {
-    return `This action updates a #${id} question`;
+  update(userId: number, id: number, updateQuestionDto: UpdateQuestionDto) {
+    return this.repo.updateQuestion(id, userId, updateQuestionDto);
   }
 
-  remove(id: number) {
-    return `This action removes a #${id} question`;
+  remove(userId: number, id: number) {
+    return this.repo.deleteQuestion(id, userId);
   }
 }

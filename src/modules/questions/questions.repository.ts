@@ -2,7 +2,11 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { DatabaseService } from '../../common/database/database.service.js';
 import { Difficulty, QuestionType } from '../../../generated/prisma/client.js';
 import { QuestionRaw } from './questions.prompts.js';
-import { anyMemberFilter } from '../../common/utils/workspace-filters.js';
+import {
+  anyMemberFilter,
+  ownerOrEditorFilter,
+} from '../../common/utils/workspace-filters.js';
+import { UpdateQuestionDto } from './dto/update-question.dto.js';
 
 @Injectable()
 export class QuestionsRepository {
@@ -104,6 +108,39 @@ export class QuestionsRepository {
     });
   }
 
+  async findAllByWorkbench(workbenchId: number, userId: number) {
+    const workbench = await this.db.workbench.findFirst({
+      where: { id: workbenchId, workspace: anyMemberFilter(userId) },
+    });
+    if (!workbench) {
+      throw new NotFoundException(`Workbench #${workbenchId} not found.`);
+    }
+
+    return this.db.question.findMany({
+      where: { workbenchId },
+      include: {
+        mcqChoices: { orderBy: { choice_order: 'asc' } },
+        openEndedAnswer: { include: { gradingKeywords: true } },
+      },
+      orderBy: { created_at: 'asc' },
+    });
+  }
+
+  async deleteQuestion(questionId: number, userId: number) {
+    const question = await this.db.question.findFirst({
+      where: {
+        id: questionId,
+        workbench: { workspace: ownerOrEditorFilter(userId) },
+      },
+    });
+    if (!question) {
+      throw new NotFoundException(`Question #${questionId} not found.`);
+    }
+
+    await this.db.question.delete({ where: { id: questionId } });
+    return { message: 'Question deleted successfully' };
+  }
+
   async findOneWithWorkbench(questionId: number, userId: number) {
     const question = await this.db.question.findFirst({
       where: {
@@ -122,6 +159,133 @@ export class QuestionsRepository {
     }
 
     return question;
+  }
+
+  async updateQuestion(
+    questionId: number,
+    userId: number,
+    dto: UpdateQuestionDto,
+  ) {
+    const question = await this.db.question.findFirst({
+      where: {
+        id: questionId,
+        workbench: { workspace: ownerOrEditorFilter(userId) },
+      },
+      include: { mcqChoices: true, openEndedAnswer: true },
+    });
+    if (!question) {
+      throw new NotFoundException(`Question #${questionId} not found.`);
+    }
+
+    return this.db.$transaction(async (tx) => {
+      // 1. Update base fields
+      const hasBaseUpdate =
+        dto.title !== undefined ||
+        dto.difficulty !== undefined ||
+        dto.explanation !== undefined;
+
+      if (hasBaseUpdate) {
+        const data: {
+          title?: string;
+          difficulty?: Difficulty;
+          explanation?: string;
+        } = {};
+        if (dto.title !== undefined) data.title = dto.title;
+        if (dto.difficulty !== undefined) data.difficulty = dto.difficulty;
+        if (dto.explanation !== undefined) data.explanation = dto.explanation;
+
+        await tx.question.update({ where: { id: questionId }, data });
+      }
+
+      // 2. MCQ choices
+      const isMcq = question.question_type === QuestionType.mcq;
+      if (dto.mcqChoices !== undefined && isMcq) {
+        for (const choice of dto.mcqChoices) {
+          if (choice.id !== undefined) {
+            const data: {
+              choice_text?: string;
+              choice_order?: number;
+              is_correct?: boolean;
+            } = {};
+            if (choice.choice_text !== undefined) {
+              data.choice_text = choice.choice_text;
+            }
+            if (choice.choice_order !== undefined) {
+              data.choice_order = choice.choice_order;
+            }
+            if (choice.is_correct !== undefined) {
+              data.is_correct = choice.is_correct;
+            }
+            await tx.mCQChoice.update({ where: { id: choice.id }, data });
+          } else {
+            await tx.mCQChoice.create({
+              data: {
+                question_id: questionId,
+                choice_text: choice.choice_text ?? '',
+                choice_order: choice.choice_order ?? 0,
+                is_correct: choice.is_correct ?? false,
+              },
+            });
+          }
+        }
+      }
+
+      // 3. Open-ended answer / grading keywords
+      const isOpenEnded = question.question_type === QuestionType.open_ended;
+      if (isOpenEnded) {
+        if (dto.sample_answer !== undefined) {
+          if (question.openEndedAnswer) {
+            await tx.openEndedAnswer.update({
+              where: { id: question.openEndedAnswer.id },
+              data: { sample_answer: dto.sample_answer },
+            });
+          } else {
+            await tx.openEndedAnswer.create({
+              data: {
+                question_id: questionId,
+                sample_answer: dto.sample_answer,
+              },
+            });
+          }
+        }
+
+        if (dto.gradingKeywords !== undefined && question.openEndedAnswer) {
+          const answerId = question.openEndedAnswer.id;
+          for (const kw of dto.gradingKeywords) {
+            if (kw.id !== undefined) {
+              const data: {
+                keyword?: string;
+                weight?: number;
+                is_required?: boolean;
+              } = {};
+              if (kw.keyword !== undefined) data.keyword = kw.keyword;
+              if (kw.weight !== undefined) data.weight = kw.weight;
+              if (kw.is_required !== undefined)
+                data.is_required = kw.is_required;
+              await tx.gradingKeyword.update({ where: { id: kw.id }, data });
+            } else {
+              await tx.gradingKeyword.create({
+                data: {
+                  open_ended_answer_id: answerId,
+                  keyword: kw.keyword ?? '',
+                  weight: kw.weight ?? 1.0,
+                  is_required: kw.is_required ?? false,
+                },
+              });
+            }
+          }
+        }
+      }
+
+      // 4. Return updated question with relations
+      return tx.question.findUniqueOrThrow({
+        where: { id: questionId },
+        include: {
+          mcqChoices: { orderBy: { choice_order: 'asc' } },
+          openEndedAnswer: { include: { gradingKeywords: true } },
+        },
+      });
+    });
   }
 
   async replaceQuestion(

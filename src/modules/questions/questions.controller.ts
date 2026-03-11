@@ -7,6 +7,7 @@ import {
   Param,
   Delete,
   ParseIntPipe,
+  Query,
 } from '@nestjs/common';
 import { QuestionsService } from './questions.service.js';
 import { CreateQuestionDto } from './dto/create-question.dto.js';
@@ -30,8 +31,12 @@ export class QuestionsController {
   }
 
   @Get()
-  findAll() {
-    return this.questionsService.findAll();
+  @ApiOperation({ summary: 'Get all questions for a workbench' })
+  findAll(
+    @GetUser('sub') userId: number,
+    @Query('workbenchId', ParseIntPipe) workbenchId: number,
+  ) {
+    return this.questionsService.findAll(userId, workbenchId);
   }
 
   @Get(':id')
@@ -40,11 +45,13 @@ export class QuestionsController {
   }
 
   @Patch(':id')
+  @ApiOperation({ summary: 'Edit a question (title, difficulty, MCQ choices, open-ended answer)' })
   update(
-    @Param('id') id: string,
+    @GetUser('sub') userId: number,
+    @Param('id', ParseIntPipe) id: number,
     @Body() updateQuestionDto: UpdateQuestionDto,
   ) {
-    return this.questionsService.update(+id, updateQuestionDto);
+    return this.questionsService.update(userId, id, updateQuestionDto);
   }
 
   @Post(':id/regenerate')
@@ -58,7 +65,11 @@ export class QuestionsController {
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.questionsService.remove(+id);
+  @ApiOperation({ summary: 'Delete a question' })
+  remove(
+    @GetUser('sub') userId: number,
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    return this.questionsService.remove(userId, id);
   }
 }
