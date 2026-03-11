@@ -1,17 +1,20 @@
 import {
-  Controller,
-  Get,
-  Post,
   Body,
-  Param,
+  Controller,
   Delete,
+  Get,
+  Param,
+  ParseIntPipe,
+  Patch,
+  Post,
   Put,
 } from '@nestjs/common';
-import { WorkspacesService } from './workspaces.service.js';
-import { CreateWorkspaceDto } from './dto/create-workspace.dto.js';
-import { UpdateWorkspaceDto } from './dto/update-workspace.dto.js';
-import { GetUser } from '../../common/decorators/get-user.decorator.js';
 import { ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
+import { GetUser } from '../../common/decorators/get-user.decorator.js';
+import { CreateWorkspaceDto } from './dto/create-workspace.dto.js';
+import { UpdateMemberRoleDto } from './dto/update-member-role.dto.js';
+import { UpdateWorkspaceDto } from './dto/update-workspace.dto.js';
+import { WorkspacesService } from './workspaces.service.js';
 
 @Controller('workspaces')
 @ApiBearerAuth('accessToken')
@@ -53,5 +56,43 @@ export class WorkspacesController {
   @ApiOperation({ summary: 'Join a workspace' })
   join(@Param('id') id: string, @GetUser('sub') userId: number) {
     return this.workspacesService.join(userId, +id);
+  }
+
+  @Post(':id/leave')
+  @ApiOperation({ summary: 'Leave a workspace' })
+  leave(@Param('id') id: string, @GetUser('sub') userId: number) {
+    return this.workspacesService.leaveWorkspace(userId, +id);
+  }
+
+  // ---- Member management ----
+
+  @Get(':id/members')
+  @ApiOperation({ summary: 'List workspace members' })
+  getMembers(
+    @Param('id', ParseIntPipe) id: number,
+    @GetUser('sub') userId: number,
+  ) {
+    return this.workspacesService.getMembers(userId, id);
+  }
+
+  @Patch(':id/members/:memberId/role')
+  @ApiOperation({ summary: 'Update a member role (owner only)' })
+  updateMemberRole(
+    @Param('id', ParseIntPipe) id: number,
+    @Param('memberId', ParseIntPipe) memberId: number,
+    @GetUser('sub') userId: number,
+    @Body() dto: UpdateMemberRoleDto,
+  ) {
+    return this.workspacesService.updateMemberRole(userId, id, memberId, dto);
+  }
+
+  @Delete(':id/members/:memberId')
+  @ApiOperation({ summary: 'Remove a member from workspace (owner only)' })
+  removeMember(
+    @Param('id', ParseIntPipe) id: number,
+    @Param('memberId', ParseIntPipe) memberId: number,
+    @GetUser('sub') userId: number,
+  ) {
+    return this.workspacesService.removeMember(userId, id, memberId);
   }
 }

@@ -1,26 +1,30 @@
 import { Injectable } from '@nestjs/common';
-import { CreateSettingDto } from './dto/create-setting.dto.js';
-import { UpdateSettingDto } from './dto/update-setting.dto.js';
+import { DatabaseService } from '../../common/database/database.service.js';
+import { UpdateProfileDto } from './dto/update-profile.dto.js';
 
 @Injectable()
 export class SettingsService {
-  create(createSettingDto: CreateSettingDto) {
-    return 'This action adds a new setting';
+  constructor(private readonly db: DatabaseService) {}
+
+  async getProfile(userId: number) {
+    return this.db.user.findUniqueOrThrow({
+      where: { id: userId },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+        created_at: true,
+      },
+    });
   }
 
-  findAll() {
-    return `This action returns all settings`;
-  }
-
-  findOne(id: number) {
-    return `This action returns a #${id} setting`;
-  }
-
-  update(id: number, updateSettingDto: UpdateSettingDto) {
-    return `This action updates a #${id} setting`;
-  }
-
-  remove(id: number) {
-    return `This action removes a #${id} setting`;
+  async updateProfile(userId: number, dto: UpdateProfileDto) {
+    const updated = await this.db.user.update({
+      where: { id: userId },
+      data: dto,
+      select: { id: true, firstName: true, lastName: true, email: true },
+    });
+    return updated;
   }
 }

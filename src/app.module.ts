@@ -16,15 +16,15 @@ import { ChatModule } from './modules/chat/chat.module.js';
 
 @Module({
   imports: [
+    ConfigModule.forRoot({ isGlobal: true }),
     DatabaseModule,
     AuthModule,
     WorkspacesModule,
+    SettingsModule,
     ResourcesModule,
     FlashcardsModule,
     QuizzesModule,
     WorkbenchesModule,
-    SettingsModule,
-    ConfigModule.forRoot({ isGlobal: true }),
     QuestionsModule,
     ChatModule,
   ],
