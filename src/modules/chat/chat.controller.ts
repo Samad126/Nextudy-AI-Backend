@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Post,
+  Patch,
   Delete,
   Body,
   Param,
@@ -11,6 +12,7 @@ import {
 import { ChatService } from './chat.service.js';
 import { CreateChatDto } from './dto/create-chat.dto.js';
 import { SendMessageDto } from './dto/send-message.dto.js';
+import { EditMessageDto } from './dto/edit-message.dto.js';
 import { ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { GetUser } from '../../common/decorators/get-user.decorator.js';
 
@@ -60,5 +62,16 @@ export class ChatController {
     @Body() dto: SendMessageDto,
   ) {
     return this.chatService.sendMessage(userId, id, dto);
+  }
+
+  @Patch(':id/messages/:messageId')
+  @ApiOperation({ summary: 'Edit a user message and regenerate AI response' })
+  editMessage(
+    @GetUser('sub') userId: number,
+    @Param('id', ParseIntPipe) id: number,
+    @Param('messageId', ParseIntPipe) messageId: number,
+    @Body() dto: EditMessageDto,
+  ) {
+    return this.chatService.editMessage(userId, id, messageId, dto);
   }
 }

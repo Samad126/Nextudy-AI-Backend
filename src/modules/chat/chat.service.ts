@@ -1,9 +1,15 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { DatabaseService } from '../../common/database/database.service.js';
 import { GeminiService } from '../gemini/gemini.service.js';
 import { anyMemberFilter } from '../../common/utils/workspace-filters.js';
 import { CreateChatDto } from './dto/create-chat.dto.js';
 import { SendMessageDto } from './dto/send-message.dto.js';
+import { EditMessageDto } from './dto/edit-message.dto.js';
+
 import { MessageRole } from '../../../generated/prisma/client.js';
 import {
   buildChatJsonInstruction,
@@ -26,6 +32,13 @@ Guidelines:
 - Maintain a professional, encouraging, and student-friendly tone.
 - Always respond in the JSON format specified in the user's message.`;
 
+type WorkbenchResource = {
+  id: number;
+  name: string;
+  store_id: string | null;
+  mime_type: string | null;
+};
+
 @Injectable()
 export class ChatService {
   constructor(
@@ -41,10 +54,36 @@ export class ChatService {
     return workbench;
   }
 
+  private async _callGemini(
+    content: string,
+    history: { role: 'user' | 'model'; content: string }[],
+    resources: WorkbenchResource[],
+  ) {
+    const files = resources
+      .filter((r) => r.store_id && r.mime_type)
+      .map((r) => ({
+        uri: r.store_id as string,
+        mimeType: r.mime_type as string,
+      }));
+
+    const resourceMeta = resources.map((r) => ({ id: r.id, fileName: r.name }));
+    const jsonInstruction = buildChatJsonInstruction(resourceMeta);
+
+    const rawText = await this.gemini.generateChatResponse(
+      content,
+      history,
+      files,
+      jsonInstruction,
+      SYSTEM_PROMPT,
+    );
+
+    return this.gemini.parseJsonResponse<ChatAIResponse>(rawText);
+  }
+
   async create(userId: number, dto: CreateChatDto) {
     await this.getWorkbenchForUser(userId, dto.workbenchId);
 
-    return this.db.chatHistory.create({
+    const chat = await this.db.chatHistory.create({
       data: {
         workbenchId: dto.workbenchId,
         title: dto.title,
@@ -52,6 +91,8 @@ export class ChatService {
         system_prompt: SYSTEM_PROMPT,
       },
     });
+
+    return chat;
   }
 
   async findAll(userId: number, workbenchId: number) {
@@ -82,63 +123,25 @@ export class ChatService {
     return { message: 'Chat deleted successfully' };
   }
 
-  async sendMessage(userId: number, chatId: number, dto: SendMessageDto) {
-    const chat = await this.db.chatHistory.findFirst({
-      where: { id: chatId, workbench: { workspace: anyMemberFilter(userId) } },
-      include: {
-        workbench: {
-          include: { resources: { include: { resource: true } } },
-        },
-        messages: { orderBy: { created_at: 'asc' } },
-      },
+  private async _sendMessage(
+    chatId: number,
+    content: string,
+    workbenchId: number,
+    existingHistory: { role: 'user' | 'model'; content: string }[] = [],
+  ) {
+    const workbenchResources = await this.db.workbenchResource.findMany({
+      where: { workbenchId },
+      include: { resource: true },
     });
-    if (!chat) throw new NotFoundException('Chat not found');
+    const resources = workbenchResources.map((wr) => wr.resource);
 
-    const workbenchResources = chat.workbench.resources.map(
-      (wr) => wr.resource,
-    );
-
-    const files = workbenchResources
-      .filter((r) => r.store_id && r.mime_type)
-      .map((r) => ({
-        uri: r.store_id as string,
-        mimeType: r.mime_type as string,
-      }));
-
-    const resourceMeta = workbenchResources.map((r) => ({
-      id: r.id,
-      fileName: r.name,
-    }));
-
-    const jsonInstruction = buildChatJsonInstruction(resourceMeta);
-
-    const history = chat.messages
-      .filter((m) => m.role !== MessageRole.system)
-      .map((m) => ({
-        role:
-          m.role === MessageRole.user ? ('user' as const) : ('model' as const),
-        content: m.content,
-      }));
-
-    await this.db.message.create({
-      data: {
-        chat_history_id: chatId,
-        role: MessageRole.user,
-        content: dto.content,
-      },
+    const userMsg = await this.db.message.create({
+      data: { chat_history_id: chatId, role: MessageRole.user, content },
     });
 
-    const rawText = await this.gemini.generateChatResponse(
-      dto.content,
-      history,
-      files,
-      jsonInstruction,
-      SYSTEM_PROMPT,
-    );
+    const parsed = await this._callGemini(content, existingHistory, resources);
 
-    const parsed = this.gemini.parseJsonResponse<ChatAIResponse>(rawText);
-
-    const assistantMessage = await this.db.message.create({
+    const assistantMsg = await this.db.message.create({
       data: {
         chat_history_id: chatId,
         role: MessageRole.assistant,
@@ -153,6 +156,79 @@ export class ChatService {
       data: { updated_at: new Date() },
     });
 
-    return assistantMessage;
+    return [userMsg, assistantMsg];
+  }
+
+  async sendMessage(userId: number, chatId: number, dto: SendMessageDto) {
+    const chat = await this.db.chatHistory.findFirst({
+      where: { id: chatId, workbench: { workspace: anyMemberFilter(userId) } },
+      include: {
+        workbench: true,
+        messages: { orderBy: { created_at: 'asc' } },
+      },
+    });
+    if (!chat) throw new NotFoundException('Chat not found');
+
+    const history = chat.messages
+      .filter((m) => m.role !== MessageRole.system)
+      .map((m) => ({
+        role:
+          m.role === MessageRole.user ? ('user' as const) : ('model' as const),
+        content: m.content,
+      }));
+
+    const [, assistantMsg] = await this._sendMessage(
+      chatId,
+      dto.content,
+      chat.workbench.workspaceId,
+      history,
+    );
+
+    return assistantMsg;
+  }
+
+  async editMessage(
+    userId: number,
+    chatId: number,
+    messageId: number,
+    dto: EditMessageDto,
+  ) {
+    const chat = await this.db.chatHistory.findFirst({
+      where: { id: chatId, workbench: { workspace: anyMemberFilter(userId) } },
+      include: {
+        workbench: true,
+        messages: { orderBy: { created_at: 'asc' } },
+      },
+    });
+    if (!chat) throw new NotFoundException('Chat not found');
+
+    const target = chat.messages.find((m) => m.id === messageId);
+    if (!target) throw new NotFoundException('Message not found');
+    if (target.role !== MessageRole.user) {
+      throw new BadRequestException('Only user messages can be edited');
+    }
+
+    // Keep history before the edited message
+    const historyBefore = chat.messages
+      .filter((m) => m.id < messageId && m.role !== MessageRole.system)
+      .map((m) => ({
+        role:
+          m.role === MessageRole.user ? ('user' as const) : ('model' as const),
+        content: m.content,
+      }));
+
+    // Delete the edited message and everything after it
+    await this.db.message.deleteMany({
+      where: { chat_history_id: chatId, id: { gte: messageId } },
+    });
+
+    const [, assistantMsg] = await this._sendMessage(
+      chatId,
+      dto.content,
+      chat.workbench.workspaceId,
+      historyBefore,
+    );
+
+    return assistantMsg;
   }
 }
