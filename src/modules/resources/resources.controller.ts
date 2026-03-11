@@ -19,7 +19,8 @@ import {
 } from '@nestjs/swagger';
 import { FileInterceptor } from '@nestjs/platform-express';
 import type { Response } from 'express';
-import { resolve } from 'path';
+import { resolve, sep } from 'path';
+import { ForbiddenException } from '@nestjs/common';
 import { ResourcesService } from './resources.service.js';
 import { multerConfig } from '../../common/config/multer.config.js';
 import { GetUser } from '../../common/decorators/get-user.decorator.js';
@@ -60,7 +61,12 @@ export class ResourcesController {
     @Res() res: Response,
   ) {
     const resource = await this.resourcesService.getFilePath(userId, id);
-    res.sendFile(resolve(resource.filePath));
+    const safeBase = resolve('./uploads');
+    const resolved = resolve(resource.filePath);
+    if (!resolved.startsWith(safeBase + sep)) {
+      throw new ForbiddenException('Invalid file path');
+    }
+    res.sendFile(resolved);
   }
 
   @Delete(':id')

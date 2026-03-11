@@ -58,25 +58,6 @@ export class WorkspacesService {
     };
   }
 
-  async join(userId: number, workspaceId: number) {
-    const workspace = await this.db.workspace.findUnique({
-      where: { id: workspaceId },
-    });
-    if (!workspace) throw new NotFoundException('Workspace not found');
-
-    if (workspace.ownerId === userId) {
-      return { message: 'You already own this workspace' };
-    }
-
-    await this.db.workspaceMember.upsert({
-      where: { workspaceId_userId: { workspaceId, userId } },
-      update: {},
-      create: { workspaceId, userId },
-    });
-
-    return { message: 'Joined workspace successfully' };
-  }
-
   // ---- Member management ----
 
   async getMembers(userId: number, workspaceId: number) {

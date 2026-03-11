@@ -2,9 +2,22 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module.js';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import helmet from 'helmet';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+
+  app.use(helmet());
+
+  app.enableCors({
+    origin: process.env.ALLOWED_ORIGINS?.split(',') ?? false,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
+    credentials: true,
+  });
+
+  // if (process.env.NODE_ENV !== 'production') {
+
+  // }
 
   const config = new DocumentBuilder()
     .setTitle('Nextudy Backend Api')

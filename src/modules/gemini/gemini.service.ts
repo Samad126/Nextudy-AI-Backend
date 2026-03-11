@@ -1,10 +1,11 @@
 import { GoogleGenerativeAI, GenerativeModel } from '@google/generative-ai';
 import { GoogleAIFileManager } from '@google/generative-ai/server';
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class GeminiService {
+  private readonly logger = new Logger(GeminiService.name);
   private genAI: GoogleGenerativeAI;
   private model: GenerativeModel;
   private fileManager: GoogleAIFileManager;
@@ -65,8 +66,9 @@ export class GeminiService {
     try {
       return JSON.parse(cleaned) as T;
     } catch {
+      this.logger.error('Gemini returned invalid JSON', rawText.slice(0, 500));
       throw new BadRequestException(
-        `Gemini returned invalid JSON. Raw response: ${rawText.slice(0, 300)}`,
+        'AI response could not be processed. Please try again.',
       );
     }
   }

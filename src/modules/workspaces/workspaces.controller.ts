@@ -53,16 +53,10 @@ export class WorkspacesController {
     return this.workspacesService.remove(userId, +id);
   }
 
-  @Post(':id/join')
-  @ApiOperation({ summary: 'Join a workspace' })
-  join(@Param('id') id: string, @GetUser('sub') userId: number) {
-    return this.workspacesService.join(userId, +id);
-  }
-
   @Post(':id/leave')
   @ApiOperation({ summary: 'Leave a workspace' })
-  leave(@Param('id') id: string, @GetUser('sub') userId: number) {
-    return this.workspacesService.leaveWorkspace(userId, +id);
+  leave(@Param('id', ParseIntPipe) id: number, @GetUser('sub') userId: number) {
+    return this.workspacesService.leaveWorkspace(userId, id);
   }
 
   // ---- Member management ----
