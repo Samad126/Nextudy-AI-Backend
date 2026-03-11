@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -7,6 +8,7 @@ import {
 import { WorkspaceMemberRole } from '../../../generated/prisma/client.js';
 import { DatabaseService } from '../../common/database/database.service.js';
 import { CreateWorkspaceDto } from './dto/create-workspace.dto.js';
+import { InviteMemberDto } from './dto/invite-member.dto.js';
 import { UpdateMemberRoleDto } from './dto/update-member-role.dto.js';
 import { UpdateWorkspaceDto } from './dto/update-workspace.dto.js';
 
@@ -175,5 +177,85 @@ export class WorkspacesService {
     });
 
     return { message: 'Left workspace successfully' };
+  }
+
+  // ---- Invitations ----
+
+  async inviteMember(
+    inviterId: number,
+    workspaceId: number,
+    dto: InviteMemberDto,
+  ) {
+    const workspace = await this.db.workspace.findFirst({
+      where: { id: workspaceId, ownerId: inviterId },
+    });
+    if (!workspace)
+      throw new ForbiddenException('Only the owner can invite members');
+
+    // Check if already a member by email
+    const existingUser = await this.db.user.findUnique({
+      where: { email: dto.email },
+    });
+
+    if (existingUser) {
+      if (existingUser.id === inviterId) {
+        throw new BadRequestException('You cannot invite yourself');
+      }
+      const alreadyMember = await this.db.workspaceMember.findUnique({
+        where: { workspaceId_userId: { workspaceId, userId: existingUser.id } },
+      });
+      if (alreadyMember)
+        throw new ConflictException(
+          'User is already a member of this workspace',
+        );
+    }
+
+    // Check for existing pending invite
+    const existingInvite = await this.db.workspaceInvite.findUnique({
+      where: {
+        workspaceId_invitee_email: { workspaceId, invitee_email: dto.email },
+      },
+    });
+    if (existingInvite && existingInvite.status === 'pending') {
+      throw new ConflictException(
+        'A pending invite already exists for this user',
+      );
+    }
+
+    const inviter = await this.db.user.findUniqueOrThrow({
+      where: { id: inviterId },
+      select: { firstName: true, lastName: true },
+    });
+
+    await this.db.$transaction(async (tx) => {
+      const notification = await tx.notification.create({
+        data: {
+          userId: existingUser?.id ?? inviterId, // fallback, real delivery to invitee when they register
+          type: 'workspace_invite',
+          title: 'Workspace Invitation',
+          message: `${inviter.firstName} ${inviter.lastName} invited you to join "${workspace.name}"`,
+        },
+      });
+
+      await tx.workspaceInvite.upsert({
+        where: {
+          workspaceId_invitee_email: { workspaceId, invitee_email: dto.email },
+        },
+        update: {
+          status: 'pending',
+          notification_id: notification.id,
+          responded_at: null,
+        },
+        create: {
+          notification_id: notification.id,
+          workspaceId,
+          inviter_id: inviterId,
+          invitee_email: dto.email,
+          invitee_id: existingUser?.id ?? null,
+        },
+      });
+    });
+
+    return { message: 'Invitation sent successfully' };
   }
 }

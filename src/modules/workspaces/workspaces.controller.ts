@@ -12,6 +12,7 @@ import {
 import { ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { GetUser } from '../../common/decorators/get-user.decorator.js';
 import { CreateWorkspaceDto } from './dto/create-workspace.dto.js';
+import { InviteMemberDto } from './dto/invite-member.dto.js';
 import { UpdateMemberRoleDto } from './dto/update-member-role.dto.js';
 import { UpdateWorkspaceDto } from './dto/update-workspace.dto.js';
 import { WorkspacesService } from './workspaces.service.js';
@@ -94,5 +95,17 @@ export class WorkspacesController {
     @GetUser('sub') userId: number,
   ) {
     return this.workspacesService.removeMember(userId, id, memberId);
+  }
+
+  // ---- Invitations ----
+
+  @Post(':id/invite')
+  @ApiOperation({ summary: 'Invite a user to workspace by email (owner only)' })
+  inviteMember(
+    @Param('id', ParseIntPipe) id: number,
+    @GetUser('sub') userId: number,
+    @Body() dto: InviteMemberDto,
+  ) {
+    return this.workspacesService.inviteMember(userId, id, dto);
   }
 }
