@@ -89,8 +89,9 @@ export class QuestionsService {
     const { regenerateFromScratch, answerSource, questionType, difficulty } =
       dto;
 
-    // ── 1. Fetch question + verify ownership ─────────────────────────────
-    const question = await this.repo.findOneWithWorkbench(questionId, userId);
+    // ── 1. Fetch question + verify membership ────────────────────────────
+    const question = await this.repo.findById(questionId);
+    await this.workbenches.verifyMemberAccess(userId, question.workbenchId);
 
     // ── 2. Fetch Gemini-uploaded resources for the workbench ─────────────
     const files = await this.workbenches.getGeminiFiles(
@@ -131,19 +132,28 @@ export class QuestionsService {
 
   // ── CRUD placeholders ────────────────────────────────────────────────────
 
-  findAll(userId: number, workbenchId: number) {
-    return this.repo.findAllByWorkbench(workbenchId, userId);
+  async findAll(userId: number, workbenchId: number) {
+    await this.workbenches.verifyMemberAccess(userId, workbenchId);
+    return this.repo.findAllByWorkbench(workbenchId);
   }
 
   findOne(id: number) {
     return `This action returns a #${id} question`;
   }
 
-  update(userId: number, id: number, updateQuestionDto: UpdateQuestionDto) {
-    return this.repo.updateQuestion(id, userId, updateQuestionDto);
+  async update(
+    userId: number,
+    id: number,
+    updateQuestionDto: UpdateQuestionDto,
+  ) {
+    const question = await this.repo.findById(id);
+    await this.workbenches.verifyEditorAccess(userId, question.workbenchId);
+    return this.repo.updateQuestion(id, updateQuestionDto);
   }
 
-  remove(userId: number, id: number) {
-    return this.repo.deleteQuestion(id, userId);
+  async remove(userId: number, id: number) {
+    const question = await this.repo.findById(id);
+    await this.workbenches.verifyEditorAccess(userId, question.workbenchId);
+    return this.repo.deleteById(id);
   }
 }

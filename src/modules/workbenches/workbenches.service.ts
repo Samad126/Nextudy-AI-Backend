@@ -96,6 +96,23 @@ export class WorkbenchesService {
     });
   }
 
+  async verifyMemberAccess(userId: number, workbenchId: number) {
+    const workbench = await this.db.workbench.findFirst({
+      where: { id: workbenchId, workspace: { ...anyMemberFilter(userId) } },
+    });
+    if (!workbench) throw new NotFoundException('Workbench not found');
+  }
+
+  async verifyEditorAccess(userId: number, workbenchId: number) {
+    const workbench = await this.db.workbench.findFirst({
+      where: {
+        id: workbenchId,
+        workspace: { ...ownerOrEditorFilter(userId) },
+      },
+    });
+    if (!workbench) throw new NotFoundException('Workbench not found');
+  }
+
   async getGeminiFiles(userId: number, workbenchId: number) {
     const workbenchResources = await this.getResources(userId, workbenchId);
     return this.gemini.toGeminiFiles(

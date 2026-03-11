@@ -2,10 +2,6 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { DatabaseService } from '../../common/database/database.service.js';
 import { Difficulty, QuestionType } from '../../../generated/prisma/client.js';
 import { QuestionRaw } from './questions.prompts.js';
-import {
-  anyMemberFilter,
-  ownerOrEditorFilter,
-} from '../../common/utils/workspace-filters.js';
 import { UpdateQuestionDto } from './dto/update-question.dto.js';
 
 @Injectable()
@@ -108,14 +104,7 @@ export class QuestionsRepository {
     });
   }
 
-  async findAllByWorkbench(workbenchId: number, userId: number) {
-    const workbench = await this.db.workbench.findFirst({
-      where: { id: workbenchId, workspace: anyMemberFilter(userId) },
-    });
-    if (!workbench) {
-      throw new NotFoundException(`Workbench #${workbenchId} not found.`);
-    }
-
+  async findAllByWorkbench(workbenchId: number) {
     return this.db.question.findMany({
       where: { workbenchId },
       include: {
@@ -126,51 +115,29 @@ export class QuestionsRepository {
     });
   }
 
-  async deleteQuestion(questionId: number, userId: number) {
-    const question = await this.db.question.findFirst({
-      where: {
-        id: questionId,
-        workbench: { workspace: ownerOrEditorFilter(userId) },
-      },
-    });
-    if (!question) {
-      throw new NotFoundException(`Question #${questionId} not found.`);
-    }
-
-    await this.db.question.delete({ where: { id: questionId } });
-    return { message: 'Question deleted successfully' };
-  }
-
-  async findOneWithWorkbench(questionId: number, userId: number) {
-    const question = await this.db.question.findFirst({
-      where: {
-        id: questionId,
-        workbench: { workspace: anyMemberFilter(userId) },
-      },
+  async findById(questionId: number) {
+    const question = await this.db.question.findUnique({
+      where: { id: questionId },
       include: {
         workbench: true,
         mcqChoices: true,
         openEndedAnswer: { include: { gradingKeywords: true } },
       },
     });
-
     if (!question) {
       throw new NotFoundException(`Question #${questionId} not found.`);
     }
-
     return question;
   }
 
-  async updateQuestion(
-    questionId: number,
-    userId: number,
-    dto: UpdateQuestionDto,
-  ) {
-    const question = await this.db.question.findFirst({
-      where: {
-        id: questionId,
-        workbench: { workspace: ownerOrEditorFilter(userId) },
-      },
+  async deleteById(questionId: number) {
+    await this.db.question.delete({ where: { id: questionId } });
+    return { message: 'Question deleted successfully' };
+  }
+
+  async updateQuestion(questionId: number, dto: UpdateQuestionDto) {
+    const question = await this.db.question.findUnique({
+      where: { id: questionId },
       include: { mcqChoices: true, openEndedAnswer: true },
     });
     if (!question) {
@@ -233,40 +200,48 @@ export class QuestionsRepository {
       // 3. Open-ended answer / grading keywords
       const isOpenEnded = question.question_type === QuestionType.open_ended;
       if (isOpenEnded) {
+        let openEndedAnswerId = question.openEndedAnswer?.id;
+
         if (dto.sample_answer !== undefined) {
-          if (question.openEndedAnswer) {
+          if (openEndedAnswerId !== undefined) {
             await tx.openEndedAnswer.update({
-              where: { id: question.openEndedAnswer.id },
+              where: { id: openEndedAnswerId },
               data: { sample_answer: dto.sample_answer },
             });
           } else {
-            await tx.openEndedAnswer.create({
+            const created = await tx.openEndedAnswer.create({
               data: {
                 question_id: questionId,
                 sample_answer: dto.sample_answer,
               },
             });
+            openEndedAnswerId = created.id;
           }
         }
 
-        if (dto.gradingKeywords !== undefined && question.openEndedAnswer) {
-          const answerId = question.openEndedAnswer.id;
+        if (
+          dto.gradingKeywords !== undefined &&
+          openEndedAnswerId !== undefined
+        ) {
           for (const kw of dto.gradingKeywords) {
             if (kw.id !== undefined) {
-              const data: {
+              const kwData: {
                 keyword?: string;
                 weight?: number;
                 is_required?: boolean;
               } = {};
-              if (kw.keyword !== undefined) data.keyword = kw.keyword;
-              if (kw.weight !== undefined) data.weight = kw.weight;
+              if (kw.keyword !== undefined) kwData.keyword = kw.keyword;
+              if (kw.weight !== undefined) kwData.weight = kw.weight;
               if (kw.is_required !== undefined)
-                data.is_required = kw.is_required;
-              await tx.gradingKeyword.update({ where: { id: kw.id }, data });
+                kwData.is_required = kw.is_required;
+              await tx.gradingKeyword.update({
+                where: { id: kw.id },
+                data: kwData,
+              });
             } else {
               await tx.gradingKeyword.create({
                 data: {
-                  open_ended_answer_id: answerId,
+                  open_ended_answer_id: openEndedAnswerId,
                   keyword: kw.keyword ?? '',
                   weight: kw.weight ?? 1.0,
                   is_required: kw.is_required ?? false,
