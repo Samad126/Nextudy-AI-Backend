@@ -11,6 +11,7 @@ import { AuthService } from './auth.service.js';
 import { RegisterDto } from './dto/register.dto.js';
 import { LoginDto } from './dto/login.dto.js';
 import { RefreshDto } from './dto/refresh.dto.js';
+import { GoogleLoginDto } from './dto/google-login.dto.js';
 import { LocalAuthGuard } from '../../common/guards/local-auth.guard.js';
 import { JwtRefreshGuard } from '../../common/guards/jwt-refresh.guard.js';
 import { GetUser } from '../../common/decorators/get-user.decorator.js';
@@ -45,6 +46,14 @@ export class AuthController {
   @ApiOperation({ summary: 'Logout (invalidates refresh token)' })
   logout(@GetUser('sub') userId: number) {
     return this.authService.logout(userId);
+  }
+
+  @Public()
+  @HttpCode(HttpStatus.OK)
+  @Post('google')
+  @ApiOperation({ summary: 'Login with Google ID token' })
+  googleLogin(@Body() dto: GoogleLoginDto) {
+    return this.authService.googleLogin(dto.credential);
   }
 
   @Public()

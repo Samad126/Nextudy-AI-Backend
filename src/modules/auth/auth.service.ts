@@ -3,8 +3,10 @@ import {
   ForbiddenException,
   Injectable,
   UnauthorizedException,
+  BadRequestException,
 } from '@nestjs/common';
 import * as argon2 from 'argon2';
+import { OAuth2Client } from 'google-auth-library';
 import { DatabaseService } from '../../common/database/database.service.js';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
@@ -12,11 +14,17 @@ import { RegisterDto } from './dto/register.dto.js';
 
 @Injectable()
 export class AuthService {
+  private readonly googleClient: OAuth2Client;
+
   constructor(
     private readonly db: DatabaseService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
-  ) {}
+  ) {
+    this.googleClient = new OAuth2Client(
+      this.configService.getOrThrow<string>('GOOGLE_CLIENT_ID'),
+    );
+  }
 
   async register(dto: RegisterDto) {
     const existing = await this.db.user.findUnique({
@@ -76,16 +84,43 @@ export class AuthService {
     return tokens;
   }
 
-  // ─── Google OAuth hook (add provider logic here later) ──────────────────────
-  // async googleLogin(profile: GoogleProfile) {
-  //   let user = await this.db.user.findUnique({ where: { email: profile.email } });
-  //   if (!user) {
-  //     user = await this.db.user.create({ data: { ...profile, hashedPassword: null } });
-  //   }
-  //   const tokens = await this.generateTokens(user.id, user.email);
-  //   await this.updateRefreshToken(user.id, tokens.refreshToken);
-  //   return tokens;
-  // }
+  async googleLogin(credential: string) {
+    const ticket = await this.googleClient.verifyIdToken({
+      idToken: credential,
+      audience: this.configService.getOrThrow<string>('GOOGLE_CLIENT_ID'),
+    });
+
+    const payload = ticket.getPayload();
+    if (!payload?.sub || !payload.email) {
+      throw new BadRequestException('Invalid Google credential');
+    }
+
+    const { sub: googleId, email, given_name, family_name } = payload;
+
+    let user = await this.db.user.findFirst({
+      where: { OR: [{ googleId }, { email }] },
+    });
+
+    if (!user) {
+      user = await this.db.user.create({
+        data: {
+          googleId,
+          email,
+          firstName: given_name ?? '',
+          lastName: family_name ?? '',
+        },
+      });
+    } else if (!user.googleId) {
+      user = await this.db.user.update({
+        where: { id: user.id },
+        data: { googleId },
+      });
+    }
+
+    const tokens = await this.generateTokens(user.id, user.email);
+    await this.updateRefreshToken(user.id, tokens.refreshToken);
+    return tokens;
+  }
 
   private async generateTokens(userId: number, email: string) {
     const [accessToken, refreshToken] = await Promise.all([

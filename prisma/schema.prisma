@@ -68,6 +68,7 @@ model User {
   email              String   @unique
   hashedPassword     String? // null for OAuth-only users (e.g. Google)
   hashedRefreshToken String?
+  googleId           String? @unique
   created_at         DateTime @default(now())
   updated_at         DateTime @updatedAt
 
