@@ -2,8 +2,8 @@ import { IsString, IsNotEmpty } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class GoogleLoginDto {
-  @ApiProperty({ description: 'Google ID token from @react-oauth/google' })
+  @ApiProperty({ description: 'Google access token' })
   @IsString()
   @IsNotEmpty()
-  credential: string;
+  accessToken: string;
 }

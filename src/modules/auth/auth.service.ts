@@ -6,7 +6,6 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import * as argon2 from 'argon2';
-import { OAuth2Client } from 'google-auth-library';
 import { DatabaseService } from '../../common/database/database.service.js';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
@@ -14,17 +13,11 @@ import { RegisterDto } from './dto/register.dto.js';
 
 @Injectable()
 export class AuthService {
-  private readonly googleClient: OAuth2Client;
-
   constructor(
     private readonly db: DatabaseService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
-  ) {
-    this.googleClient = new OAuth2Client(
-      this.configService.getOrThrow<string>('GOOGLE_CLIENT_ID'),
-    );
-  }
+  ) {}
 
   async register(dto: RegisterDto) {
     const existing = await this.db.user.findUnique({
@@ -84,18 +77,27 @@ export class AuthService {
     return tokens;
   }
 
-  async googleLogin(credential: string) {
-    const ticket = await this.googleClient.verifyIdToken({
-      idToken: credential,
-      audience: this.configService.getOrThrow<string>('GOOGLE_CLIENT_ID'),
+  async googleLogin(accessToken: string) {
+    const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+      headers: { Authorization: `Bearer ${accessToken}` },
     });
 
-    const payload = ticket.getPayload();
-    if (!payload?.sub || !payload.email) {
-      throw new BadRequestException('Invalid Google credential');
-    }
+    if (!res.ok) throw new BadRequestException('Invalid Google access token');
 
-    const { sub: googleId, email, given_name, family_name } = payload;
+    const {
+      sub: googleId,
+      email,
+      given_name,
+      family_name,
+    } = (await res.json()) as {
+      sub: string;
+      email: string;
+      given_name?: string;
+      family_name?: string;
+    };
+
+    if (!googleId || !email)
+      throw new BadRequestException('Invalid Google token');
 
     let user = await this.db.user.findFirst({
       where: { OR: [{ googleId }, { email }] },
