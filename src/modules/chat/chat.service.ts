@@ -1,11 +1,12 @@
 import {
   BadRequestException,
+  Inject,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { DatabaseService } from '../../common/database/database.service.js';
-import { GeminiService } from '../gemini/gemini.service.js';
-import { anyMemberFilter } from '../../common/utils/workspace-filters.js';
+import type { IGeminiService } from '../gemini/gemini.interface.js';
+import { GEMINI_SERVICE } from '../gemini/gemini.interface.js';
 import { CreateChatDto } from './dto/create-chat.dto.js';
 import { SendMessageDto } from './dto/send-message.dto.js';
 import { EditMessageDto } from './dto/edit-message.dto.js';
@@ -13,24 +14,12 @@ import { EditMessageDto } from './dto/edit-message.dto.js';
 import { MessageRole } from '../../../generated/prisma/client.js';
 import {
   buildChatJsonInstruction,
+  SYSTEM_PROMPT,
   type ChatAIResponse,
 } from './chat.prompts.js';
+import { ChatRepository } from './chat.repository.js';
 
 const MODEL_ID = 'gemini-3.1-flash-lite-preview';
-
-const SYSTEM_PROMPT = `You are Nextudy AI, an intelligent study assistant embedded in a learning platform.
-
-Your role is to help students understand, analyse, and learn from their uploaded study materials (PDFs, documents, images, and text files).
-
-Guidelines:
-- Base your answers primarily on the provided documents. If the answer is in the documents, cite or reference the relevant content.
-- If the question cannot be answered from the documents, you may use your general knowledge but clearly state that you are doing so.
-- Be concise and clear. Avoid unnecessary filler or repetition.
-- When explaining concepts, use simple language and examples where helpful.
-- If asked to generate flashcards or quizzes, let the user know they can create them directly from the Flashcards and Quizzes sections in the app using their uploaded resources.
-- Never make up facts. If you are unsure, say so.
-- Maintain a professional, encouraging, and student-friendly tone.
-- Always respond in the JSON format specified in the user's message.`;
 
 type WorkbenchResource = {
   id: number;
@@ -41,15 +30,15 @@ type WorkbenchResource = {
 
 @Injectable()
 export class ChatService {
+  private readonly logger = new Logger(ChatService.name);
+
   constructor(
-    private readonly db: DatabaseService,
-    private readonly gemini: GeminiService,
+    private readonly repo: ChatRepository,
+    @Inject(GEMINI_SERVICE) private readonly gemini: IGeminiService,
   ) {}
 
   private async getWorkbenchForUser(userId: number, workbenchId: number) {
-    const workbench = await this.db.workbench.findFirst({
-      where: { id: workbenchId, workspace: anyMemberFilter(userId) },
-    });
+    const workbench = await this.repo.findWorkbench(workbenchId, userId);
     if (!workbench) throw new NotFoundException('Workbench not found');
     return workbench;
   }
@@ -78,43 +67,34 @@ export class ChatService {
   async create(userId: number, dto: CreateChatDto) {
     await this.getWorkbenchForUser(userId, dto.workbenchId);
 
-    const chat = await this.db.chatHistory.create({
-      data: {
-        workbenchId: dto.workbenchId,
-        title: dto.title,
-        model_id: MODEL_ID,
-        system_prompt: SYSTEM_PROMPT,
-      },
+    const chat = await this.repo.createChat({
+      workbenchId: dto.workbenchId,
+      title: dto.title,
+      model_id: MODEL_ID,
+      system_prompt: SYSTEM_PROMPT,
     });
 
+    this.logger.log(`Chat created for workbench ${dto.workbenchId}`);
     return chat;
   }
 
   async findAll(userId: number, workbenchId: number) {
     await this.getWorkbenchForUser(userId, workbenchId);
-    return this.db.chatHistory.findMany({
-      where: { workbenchId },
-      orderBy: { created_at: 'desc' },
-      include: { _count: { select: { messages: true } } },
-    });
+    return this.repo.findAllChats(workbenchId);
   }
 
   async findOne(userId: number, chatId: number) {
-    const chat = await this.db.chatHistory.findFirst({
-      where: { id: chatId, workbench: { workspace: anyMemberFilter(userId) } },
-      include: { messages: { orderBy: { created_at: 'asc' } } },
-    });
+    const chat = await this.repo.findOneChat(chatId, userId);
     if (!chat) throw new NotFoundException('Chat not found');
     return chat;
   }
 
   async remove(userId: number, chatId: number) {
-    const chat = await this.db.chatHistory.findFirst({
-      where: { id: chatId, workbench: { workspace: anyMemberFilter(userId) } },
-    });
+    const chat = await this.repo.findOneChatBase(chatId, userId);
     if (!chat) throw new NotFoundException('Chat not found');
 
-    await this.db.chatHistory.delete({ where: { id: chatId } });
+    await this.repo.deleteChat(chatId);
+    this.logger.log(`Chat ${chatId} deleted`);
     return { message: 'Chat deleted successfully' };
   }
 
@@ -124,44 +104,33 @@ export class ChatService {
     workbenchId: number,
     existingHistory: { role: 'user' | 'model'; content: string }[] = [],
   ) {
-    const workbenchResources = await this.db.workbenchResource.findMany({
-      where: { workbenchId },
-      include: { resource: true },
-    });
+    const workbenchResources =
+      await this.repo.findWorkbenchResources(workbenchId);
     const resources = workbenchResources.map((wr) => wr.resource);
 
-    const userMsg = await this.db.message.create({
-      data: { chat_history_id: chatId, role: MessageRole.user, content },
+    const userMsg = await this.repo.createMessage({
+      chat_history_id: chatId,
+      role: MessageRole.user,
+      content,
     });
 
     const parsed = await this._callGemini(content, existingHistory, resources);
 
-    const assistantMsg = await this.db.message.create({
-      data: {
-        chat_history_id: chatId,
-        role: MessageRole.assistant,
-        content: parsed.answer,
-        model_id: MODEL_ID,
-        sources: parsed.sources as object[],
-      },
+    const assistantMsg = await this.repo.createMessage({
+      chat_history_id: chatId,
+      role: MessageRole.assistant,
+      content: parsed.answer,
+      model_id: MODEL_ID,
+      sources: parsed.sources as object[],
     });
 
-    await this.db.chatHistory.update({
-      where: { id: chatId },
-      data: { updated_at: new Date() },
-    });
+    await this.repo.touchChat(chatId);
 
     return [userMsg, assistantMsg];
   }
 
   async sendMessage(userId: number, chatId: number, dto: SendMessageDto) {
-    const chat = await this.db.chatHistory.findFirst({
-      where: { id: chatId, workbench: { workspace: anyMemberFilter(userId) } },
-      include: {
-        workbench: true,
-        messages: { orderBy: { created_at: 'asc' } },
-      },
-    });
+    const chat = await this.repo.findOneChatWithWorkbench(chatId, userId);
     if (!chat) throw new NotFoundException('Chat not found');
 
     const history = chat.messages
@@ -188,13 +157,7 @@ export class ChatService {
     messageId: number,
     dto: EditMessageDto,
   ) {
-    const chat = await this.db.chatHistory.findFirst({
-      where: { id: chatId, workbench: { workspace: anyMemberFilter(userId) } },
-      include: {
-        workbench: true,
-        messages: { orderBy: { created_at: 'asc' } },
-      },
-    });
+    const chat = await this.repo.findOneChatWithWorkbench(chatId, userId);
     if (!chat) throw new NotFoundException('Chat not found');
 
     const target = chat.messages.find((m) => m.id === messageId);
@@ -203,7 +166,6 @@ export class ChatService {
       throw new BadRequestException('Only user messages can be edited');
     }
 
-    // Keep history before the edited message
     const historyBefore = chat.messages
       .filter((m) => m.id < messageId && m.role !== MessageRole.system)
       .map((m) => ({
@@ -212,10 +174,7 @@ export class ChatService {
         content: m.content,
       }));
 
-    // Delete the edited message and everything after it
-    await this.db.message.deleteMany({
-      where: { chat_history_id: chatId, id: { gte: messageId } },
-    });
+    await this.repo.deleteMessagesFrom(chatId, messageId);
 
     const [, assistantMsg] = await this._sendMessage(
       chatId,

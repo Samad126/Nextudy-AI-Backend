@@ -1,13 +1,16 @@
 import {
   ForbiddenException,
+  Inject,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { CreateWorkbenchDto } from './dto/create-workbench.dto.js';
 import { UpdateWorkbenchDto } from './dto/update-workbench.dto.js';
 import { SetResourcesDto } from './dto/set-resources.dto.js';
 import { DatabaseService } from '../../common/database/database.service.js';
-import { GeminiService } from '../gemini/gemini.service.js';
+import type { IGeminiService } from '../gemini/gemini.interface.js';
+import { GEMINI_SERVICE } from '../gemini/gemini.interface.js';
 import {
   anyMemberFilter,
   ownerOrEditorFilter,
@@ -15,9 +18,11 @@ import {
 
 @Injectable()
 export class WorkbenchesService {
+  private readonly logger = new Logger(WorkbenchesService.name);
+
   constructor(
     private readonly db: DatabaseService,
-    private readonly gemini: GeminiService,
+    @Inject(GEMINI_SERVICE) private readonly gemini: IGeminiService,
   ) {}
 
   async create(userId: number, createWorkbenchDto: CreateWorkbenchDto) {
@@ -28,6 +33,7 @@ export class WorkbenchesService {
     });
     if (!workspace) throw new ForbiddenException('Access denied');
 
+    this.logger.log(`Workbench created in workspace ${workspaceId}`);
     return this.db.workbench.create({
       data: {
         workspaceId,
@@ -81,6 +87,7 @@ export class WorkbenchesService {
     if (!workbench) throw new NotFoundException('Workbench not found');
 
     await this.db.workbench.delete({ where: { id: workbenchId } });
+    this.logger.log(`Workbench ${workbenchId} deleted`);
     return { message: 'Workbench deleted successfully' };
   }
 

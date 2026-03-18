@@ -1,41 +1,36 @@
 import {
   BadRequestException,
   ForbiddenException,
+  Inject,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { CreateFlashcardDto } from './dto/create-flashcard.dto.js';
 import { UpdateFlashcardDto } from './dto/update-flashcard.dto.js';
-import { DatabaseService } from '../../common/database/database.service.js';
-import { GeminiService } from '../gemini/gemini.service.js';
+import type { IGeminiService } from '../gemini/gemini.interface.js';
+import { GEMINI_SERVICE } from '../gemini/gemini.interface.js';
 import { ResourcesService } from '../resources/resources.service.js';
-import {
-  anyMemberFilter,
-  ownerOrEditorFilter,
-} from '../../common/utils/workspace-filters.js';
 import {
   buildFlashcardPrompt,
   type GeneratedFlashcardsResponse,
 } from './flashcards.prompts.js';
-
-const resourcesInclude = {
-  resources: { include: { resource: true } },
-} as const;
+import { FlashcardsRepository } from './flashcards.repository.js';
 
 @Injectable()
 export class FlashcardsService {
+  private readonly logger = new Logger(FlashcardsService.name);
+
   constructor(
-    private readonly db: DatabaseService,
-    private readonly gemini: GeminiService,
+    private readonly repo: FlashcardsRepository,
+    @Inject(GEMINI_SERVICE) private readonly gemini: IGeminiService,
     private readonly resourcesSvc: ResourcesService,
   ) {}
 
   async create(userId: number, dto: CreateFlashcardDto) {
     const { workspaceId, difficulty, count = 5, resourceIds } = dto;
 
-    const workspace = await this.db.workspace.findFirst({
-      where: { id: workspaceId, ...ownerOrEditorFilter(userId) },
-    });
+    const workspace = await this.repo.findWorkspaceAsEditor(workspaceId, userId);
     if (!workspace) throw new ForbiddenException('Access denied');
 
     await this.resourcesSvc.validateResourceIds(resourceIds, workspaceId);
@@ -58,58 +53,34 @@ export class FlashcardsService {
       throw new BadRequestException('Gemini returned no flashcards.');
     }
 
-    return this.db.$transaction(async (tx) => {
-      const flashcardRows = await tx.flashcard.createManyAndReturn({
-        data: parsed.flashcards.map((f) => ({
-          workspaceId,
-          question: f.question,
-          answer: f.answer,
-          difficulty: difficulty ?? null,
-        })),
-      });
+    this.logger.log(`Creating ${parsed.flashcards.length} flashcards in workspace ${workspaceId}`);
 
-      await tx.flashcardResource.createMany({
-        data: flashcardRows.flatMap((fc) =>
-          resourceIds.map((resourceId) => ({
-            flashcardId: fc.id,
-            resourceId,
-          })),
-        ),
-      });
-
-      return tx.flashcard.findMany({
-        where: { id: { in: flashcardRows.map((fc) => fc.id) } },
-        include: resourcesInclude,
-      });
-    });
+    return this.repo.createMany(
+      workspaceId,
+      parsed.flashcards.map((f) => ({
+        question: f.question,
+        answer: f.answer,
+        difficulty: difficulty ?? null,
+      })),
+      resourceIds,
+    );
   }
 
   async findAll(userId: number, workspaceId: number) {
-    const workspace = await this.db.workspace.findFirst({
-      where: { id: workspaceId, ...anyMemberFilter(userId) },
-    });
+    const workspace = await this.repo.findWorkspaceAsMember(workspaceId, userId);
     if (!workspace) throw new NotFoundException('Workspace not found');
 
-    return this.db.flashcard.findMany({
-      where: { workspaceId },
-      include: resourcesInclude,
-      orderBy: { created_at: 'desc' },
-    });
+    return this.repo.findAll(workspaceId);
   }
 
   async findOne(userId: number, id: number) {
-    const flashcard = await this.db.flashcard.findFirst({
-      where: { id, workspace: { ...anyMemberFilter(userId) } },
-      include: resourcesInclude,
-    });
+    const flashcard = await this.repo.findOneAsMember(id, userId);
     if (!flashcard) throw new NotFoundException('Flashcard not found');
     return flashcard;
   }
 
   async update(userId: number, id: number, dto: UpdateFlashcardDto) {
-    const flashcard = await this.db.flashcard.findFirst({
-      where: { id, workspace: { ...ownerOrEditorFilter(userId) } },
-    });
+    const flashcard = await this.repo.findOneAsEditor(id, userId);
     if (!flashcard) throw new NotFoundException('Flashcard not found');
 
     const { resourceIds, ...scalars } = dto;
@@ -120,35 +91,18 @@ export class FlashcardsService {
         flashcard.workspaceId,
       );
 
-      return this.db.$transaction(async (tx) => {
-        await tx.flashcardResource.deleteMany({ where: { flashcardId: id } });
-        return tx.flashcard.update({
-          where: { id },
-          data: {
-            ...scalars,
-            resources: {
-              create: resourceIds.map((resourceId) => ({ resourceId })),
-            },
-          },
-          include: resourcesInclude,
-        });
-      });
+      return this.repo.updateWithResources(id, scalars, resourceIds);
     }
 
-    return this.db.flashcard.update({
-      where: { id },
-      data: scalars,
-      include: resourcesInclude,
-    });
+    return this.repo.update(id, scalars);
   }
 
   async remove(userId: number, id: number) {
-    const flashcard = await this.db.flashcard.findFirst({
-      where: { id, workspace: { ...ownerOrEditorFilter(userId) } },
-    });
+    const flashcard = await this.repo.findOneAsEditor(id, userId);
     if (!flashcard) throw new NotFoundException('Flashcard not found');
 
-    await this.db.flashcard.delete({ where: { id } });
+    await this.repo.delete(id);
+    this.logger.log(`Flashcard ${id} deleted`);
     return { message: 'Flashcard deleted successfully' };
   }
 }

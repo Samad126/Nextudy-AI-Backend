@@ -1,4 +1,9 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  Inject,
+  Injectable,
+  Logger,
+} from '@nestjs/common';
 import {
   CreateQuestionDto,
   GenerationMode,
@@ -14,13 +19,16 @@ import type { GeneratedQuestionsResponse } from './questions.prompts.js';
 import { Difficulty } from '../../../generated/prisma/client.js';
 import { validateQuestionOptions } from './questions.validators.js';
 import { QuestionsRepository } from './questions.repository.js';
-import { GeminiService } from '../gemini/gemini.service.js';
+import type { IGeminiService } from '../gemini/gemini.interface.js';
+import { GEMINI_SERVICE } from '../gemini/gemini.interface.js';
 import { WorkbenchesService } from '../workbenches/workbenches.service.js';
 
 @Injectable()
 export class QuestionsService {
+  private readonly logger = new Logger(QuestionsService.name);
+
   constructor(
-    private readonly gemini: GeminiService,
+    @Inject(GEMINI_SERVICE) private readonly gemini: IGeminiService,
     private readonly workbenches: WorkbenchesService,
     private readonly repo: QuestionsRepository,
   ) {}
@@ -78,6 +86,9 @@ export class QuestionsService {
     }
 
     // ── 5. Persist to DB ─────────────────────────────────────────────────
+    this.logger.log(
+      `Persisting ${parsed.questions.length} questions for workbench ${workbenchId}`,
+    );
     return this.repo.persistQuestions(parsed.questions, workbenchId);
   }
 
@@ -154,6 +165,7 @@ export class QuestionsService {
   async remove(userId: number, id: number) {
     const question = await this.repo.findById(id);
     await this.workbenches.verifyEditorAccess(userId, question.workbenchId);
+    this.logger.log(`Question ${id} deleted`);
     return this.repo.deleteById(id);
   }
 }

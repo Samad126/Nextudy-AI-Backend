@@ -1,9 +1,11 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { DatabaseService } from '../../common/database/database.service.js';
 import { UpdateProfileDto } from './dto/update-profile.dto.js';
 
 @Injectable()
 export class SettingsService {
+  private readonly logger = new Logger(SettingsService.name);
+
   constructor(private readonly db: DatabaseService) {}
 
   async getProfile(userId: number) {
@@ -25,6 +27,7 @@ export class SettingsService {
       data: dto,
       select: { id: true, firstName: true, lastName: true, email: true },
     });
+    this.logger.log(`Profile updated for user ${userId}`);
     return updated;
   }
 }

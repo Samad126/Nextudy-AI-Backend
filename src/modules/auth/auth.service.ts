@@ -2,6 +2,7 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  Logger,
   UnauthorizedException,
   BadRequestException,
 } from '@nestjs/common';
@@ -13,6 +14,8 @@ import { RegisterDto } from './dto/register.dto.js';
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private readonly db: DatabaseService,
     private readonly jwtService: JwtService,
@@ -37,6 +40,7 @@ export class AuthService {
 
     const tokens = await this.generateTokens(user.id, user.email);
     await this.updateRefreshToken(user.id, tokens.refreshToken);
+    this.logger.log(`User registered: ${user.email}`);
     return tokens;
   }
 
@@ -62,6 +66,7 @@ export class AuthService {
       where: { id: userId },
       data: { hashedRefreshToken: null },
     });
+    this.logger.log(`User ${userId} logged out`);
   }
 
   async refreshTokens(userId: number, email: string, refreshToken: string) {

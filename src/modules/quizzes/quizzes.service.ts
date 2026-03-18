@@ -2,32 +2,30 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { CreateQuizDto } from './dto/create-quiz.dto.js';
 import { SubmitQuizDto } from './dto/submit-quiz.dto.js';
-import { DatabaseService } from '../../common/database/database.service.js';
-import {
-  anyMemberFilter,
-  ownerOrEditorFilter,
-} from '../../common/utils/workspace-filters.js';
+import { QuizGradingService } from './quiz-grading.service.js';
+import { QuizzesRepository } from './quizzes.repository.js';
 
 @Injectable()
 export class QuizzesService {
-  constructor(private readonly db: DatabaseService) {}
+  private readonly logger = new Logger(QuizzesService.name);
+
+  constructor(
+    private readonly repo: QuizzesRepository,
+    private readonly gradingService: QuizGradingService,
+  ) {}
 
   async create(userId: number, createQuizDto: CreateQuizDto) {
     const { workspaceId, title, description, questionIds } = createQuizDto;
 
-    const workspace = await this.db.workspace.findFirst({
-      where: { id: workspaceId, ...ownerOrEditorFilter(userId) },
-    });
+    const workspace = await this.repo.findWorkspaceAsEditor(workspaceId, userId);
     if (!workspace) throw new ForbiddenException('Access denied');
 
-    const questions = await this.db.question.findMany({
-      where: { id: { in: questionIds } },
-      select: { id: true },
-    });
+    const questions = await this.repo.findQuestionsByIds(questionIds);
 
     if (questions.length !== questionIds.length) {
       const foundIds = questions.map((q) => q.id);
@@ -37,66 +35,29 @@ export class QuizzesService {
       );
     }
 
-    return this.db.quiz.create({
-      data: {
-        workspaceId,
-        title,
-        description,
-        questions: {
-          create: questionIds.map((questionId) => ({ questionId })),
-        },
-      },
-      include: {
-        questions: {
-          include: {
-            question: {
-              include: { mcqChoices: true, openEndedAnswer: true },
-            },
-          },
-        },
-      },
-    });
+    this.logger.log(`Creating quiz in workspace ${workspaceId}`);
+    return this.repo.createQuiz({ workspaceId, title, description, questionIds });
   }
 
   async findAll(userId: number, workspaceId: number) {
-    const workspace = await this.db.workspace.findFirst({
-      where: { id: workspaceId, ...anyMemberFilter(userId) },
-    });
+    const workspace = await this.repo.findWorkspaceAsMember(workspaceId, userId);
     if (!workspace) throw new NotFoundException('Workspace not found');
 
-    return this.db.quiz.findMany({
-      where: { workspaceId },
-      include: {
-        questions: { select: { id: true } },
-        _count: { select: { attempts: true } },
-      },
-    });
+    return this.repo.findAllQuizzes(workspaceId, userId);
   }
 
   async findOne(userId: number, id: number) {
-    const quiz = await this.db.quiz.findFirst({
-      where: { id, workspace: { ...anyMemberFilter(userId) } },
-      include: {
-        questions: {
-          include: {
-            question: {
-              include: { mcqChoices: true, openEndedAnswer: true },
-            },
-          },
-        },
-      },
-    });
+    const quiz = await this.repo.findOneQuiz(id, userId);
     if (!quiz) throw new NotFoundException('Quiz not found');
     return quiz;
   }
 
   async remove(userId: number, id: number) {
-    const quiz = await this.db.quiz.findFirst({
-      where: { id, workspace: { ...ownerOrEditorFilter(userId) } },
-    });
+    const quiz = await this.repo.findQuizAsEditor(id, userId);
     if (!quiz) throw new NotFoundException('Quiz not found');
 
-    await this.db.quiz.delete({ where: { id } });
+    await this.repo.deleteQuiz(id);
+    this.logger.log(`Quiz ${id} deleted`);
     return { message: 'Quiz deleted successfully' };
   }
 
@@ -107,22 +68,7 @@ export class QuizzesService {
     quizId: number,
     submitDto: SubmitQuizDto,
   ) {
-    const quiz = await this.db.quiz.findFirst({
-      where: { id: quizId, workspace: { ...anyMemberFilter(userId) } },
-      include: {
-        questions: {
-          include: {
-            question: {
-              include: {
-                mcqChoices: true,
-                openEndedAnswer: { include: { gradingKeywords: true } },
-              },
-            },
-          },
-        },
-      },
-    });
-
+    const quiz = await this.repo.findQuizForSubmission(quizId, userId);
     if (!quiz) throw new NotFoundException('Quiz not found');
 
     const quizQuestionMap = new Map(quiz.questions.map((qq) => [qq.id, qq]));
@@ -136,106 +82,26 @@ export class QuizzesService {
 
     const answers = submitDto.answers.map(({ quizQuestionId, userAnswer }) => {
       const qq = quizQuestionMap.get(quizQuestionId)!;
-      const isCorrect = this.gradeAnswer(qq.question, userAnswer);
+      const isCorrect = this.gradingService.gradeAnswer(qq.question, userAnswer);
       return { quizQuestionId, userAnswer: String(userAnswer), isCorrect };
     });
 
     const correctCount = answers.filter((a) => a.isCorrect).length;
     const score = Math.round((correctCount / quiz.questions.length) * 100);
 
-    return this.db.$transaction(async (tx) => {
-      const attempt = await tx.quizAttempt.create({
-        data: { quizId, userId, score, completed_at: new Date() },
-      });
-
-      await tx.userQuizAnswer.createMany({
-        data: answers.map((a) => ({ ...a, attemptId: attempt.id })),
-      });
-
-      return tx.quizAttempt.findUnique({
-        where: { id: attempt.id },
-        include: {
-          answers: {
-            include: { quizQuestion: { include: { question: true } } },
-          },
-        },
-      });
-    });
+    return this.repo.createAttemptWithAnswers({ quizId, userId, score, answers });
   }
 
   async getAttempts(userId: number, quizId: number) {
-    const quiz = await this.db.quiz.findFirst({
-      where: { id: quizId, workspace: { ...anyMemberFilter(userId) } },
-    });
+    const quiz = await this.repo.findOneQuiz(quizId, userId);
     if (!quiz) throw new NotFoundException('Quiz not found');
 
-    return this.db.quizAttempt.findMany({
-      where: { quizId, userId },
-      orderBy: { started_at: 'desc' },
-      include: {
-        _count: { select: { answers: true } },
-      },
-    });
+    return this.repo.findAttempts(quizId, userId);
   }
 
   async getAttempt(userId: number, quizId: number, attemptId: number) {
-    const attempt = await this.db.quizAttempt.findFirst({
-      where: { id: attemptId, quizId, userId },
-      include: {
-        answers: {
-          include: {
-            quizQuestion: {
-              include: {
-                question: {
-                  include: { mcqChoices: true, openEndedAnswer: true },
-                },
-              },
-            },
-          },
-        },
-      },
-    });
+    const attempt = await this.repo.findAttempt(attemptId, quizId, userId);
     if (!attempt) throw new NotFoundException('Attempt not found');
     return attempt;
-  }
-
-  // ============= PRIVATE =============
-
-  private gradeAnswer(
-    question: {
-      question_type: string;
-      mcqChoices: { id: number; is_correct: boolean }[];
-      openEndedAnswer: {
-        gradingKeywords: { keyword: string; is_required: boolean }[];
-      } | null;
-    },
-    userAnswer: string | number,
-  ): boolean {
-    if (question.question_type === 'mcq') {
-      const choiceId =
-        typeof userAnswer === 'number' ? userAnswer : parseInt(userAnswer, 10);
-      if (isNaN(choiceId)) return false;
-      const choice = question.mcqChoices.find((c) => c.id === choiceId);
-      return choice?.is_correct ?? false;
-    }
-
-    // open_ended: check required keywords
-    if (question.openEndedAnswer?.gradingKeywords.length) {
-      const lower = String(userAnswer).toLowerCase();
-      const requiredKeywords = question.openEndedAnswer.gradingKeywords.filter(
-        (k) => k.is_required,
-      );
-      if (requiredKeywords.length) {
-        return requiredKeywords.every((k) =>
-          lower.includes(k.keyword.toLowerCase()),
-        );
-      }
-      // No required keywords — check if any keyword matches
-      return question.openEndedAnswer.gradingKeywords.some((k) =>
-        lower.includes(k.keyword.toLowerCase()),
-      );
-    }
-
-    return false;
   }
 }

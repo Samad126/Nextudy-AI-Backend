@@ -1,6 +1,7 @@
 import {
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { InviteStatus } from '../../../generated/prisma/client.js';
@@ -8,6 +9,8 @@ import { DatabaseService } from '../../common/database/database.service.js';
 
 @Injectable()
 export class NotificationsService {
+  private readonly logger = new Logger(NotificationsService.name);
+
   constructor(private readonly db: DatabaseService) {}
 
   async getAll(userId: number) {
@@ -109,6 +112,7 @@ export class NotificationsService {
       }
     });
 
+    this.logger.log(`User ${userId} ${action}ed invite ${inviteId}`);
     return {
       message:
         action === 'accept'

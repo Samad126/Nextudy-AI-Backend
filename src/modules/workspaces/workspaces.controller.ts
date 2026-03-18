@@ -16,11 +16,17 @@ import { InviteMemberDto } from './dto/invite-member.dto.js';
 import { UpdateMemberRoleDto } from './dto/update-member-role.dto.js';
 import { UpdateWorkspaceDto } from './dto/update-workspace.dto.js';
 import { WorkspacesService } from './workspaces.service.js';
+import { WorkspaceMembersService } from './workspace-members.service.js';
+import { WorkspaceInvitesService } from './workspace-invites.service.js';
 
 @Controller('workspaces')
 @ApiBearerAuth('accessToken')
 export class WorkspacesController {
-  constructor(private readonly workspacesService: WorkspacesService) {}
+  constructor(
+    private readonly workspacesService: WorkspacesService,
+    private readonly membersService: WorkspaceMembersService,
+    private readonly invitesService: WorkspaceInvitesService,
+  ) {}
 
   @Post()
   @ApiOperation({ summary: 'Create a new workspace' })
@@ -56,7 +62,7 @@ export class WorkspacesController {
   @Post(':id/leave')
   @ApiOperation({ summary: 'Leave a workspace' })
   leave(@Param('id', ParseIntPipe) id: number, @GetUser('sub') userId: number) {
-    return this.workspacesService.leaveWorkspace(userId, id);
+    return this.membersService.leaveWorkspace(userId, id);
   }
 
   // ---- Member management ----
@@ -67,7 +73,7 @@ export class WorkspacesController {
     @Param('id', ParseIntPipe) id: number,
     @GetUser('sub') userId: number,
   ) {
-    return this.workspacesService.getMembers(userId, id);
+    return this.membersService.getMembers(userId, id);
   }
 
   @Patch(':id/members/:memberId/role')
@@ -78,7 +84,7 @@ export class WorkspacesController {
     @GetUser('sub') userId: number,
     @Body() dto: UpdateMemberRoleDto,
   ) {
-    return this.workspacesService.updateMemberRole(userId, id, memberId, dto);
+    return this.membersService.updateMemberRole(userId, id, memberId, dto);
   }
 
   @Delete(':id/members/:memberId')
@@ -88,7 +94,7 @@ export class WorkspacesController {
     @Param('memberId', ParseIntPipe) memberId: number,
     @GetUser('sub') userId: number,
   ) {
-    return this.workspacesService.removeMember(userId, id, memberId);
+    return this.membersService.removeMember(userId, id, memberId);
   }
 
   // ---- Invitations ----
@@ -100,6 +106,6 @@ export class WorkspacesController {
     @GetUser('sub') userId: number,
     @Body() dto: InviteMemberDto,
   ) {
-    return this.workspacesService.inviteMember(userId, id, dto);
+    return this.invitesService.inviteMember(userId, id, dto);
   }
 }

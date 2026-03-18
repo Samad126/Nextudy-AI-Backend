@@ -13,7 +13,7 @@ async function bootstrap() {
   app.use(cookieParser());
 
   app.enableCors({
-    origin: process.env.ALLOWED_ORIGINS?.split(',') ?? false,
+    origin: process.env.ALLOWED_ORIGINS?.split(',') ?? [],
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
     credentials: true,
   });

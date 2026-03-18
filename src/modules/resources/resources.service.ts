@@ -1,25 +1,26 @@
 import {
   BadRequestException,
   ForbiddenException,
+  Inject,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { DatabaseService } from '../../common/database/database.service.js';
 import { ResourceType } from '../../../generated/prisma/client.js';
 import { unlink } from 'fs/promises';
 import { CreateResourceGroupDto } from './dto/create-resource-group.dto.js';
 import { UpdateResourceGroupDto } from './dto/update-resource-group.dto.js';
-import {
-  ownerOrEditorFilter,
-  anyMemberFilter,
-} from '../../common/utils/workspace-filters.js';
-import { GeminiService } from '../gemini/gemini.service.js';
+import type { IGeminiService } from '../gemini/gemini.interface.js';
+import { GEMINI_SERVICE } from '../gemini/gemini.interface.js';
+import { ResourcesRepository } from './resources.repository.js';
 
 @Injectable()
 export class ResourcesService {
+  private readonly logger = new Logger(ResourcesService.name);
+
   constructor(
-    private readonly db: DatabaseService,
-    private readonly gemini: GeminiService,
+    private readonly repo: ResourcesRepository,
+    @Inject(GEMINI_SERVICE) private readonly gemini: IGeminiService,
   ) {}
 
   private getResourceType(mimetype: string): ResourceType {
@@ -30,9 +31,10 @@ export class ResourcesService {
   }
 
   async create(userId: number, workspaceId: number, file: Express.Multer.File) {
-    const workspace = await this.db.workspace.findFirst({
-      where: { id: workspaceId, ...ownerOrEditorFilter(userId) },
-    });
+    const workspace = await this.repo.findWorkspaceAsEditor(
+      workspaceId,
+      userId,
+    );
     if (!workspace) throw new ForbiddenException('Access denied');
 
     const storeId = await this.gemini.uploadFile(
@@ -41,73 +43,57 @@ export class ResourcesService {
       file.originalname,
     );
 
-    return this.db.resource.create({
-      data: {
-        workspaceId,
-        name: file.originalname,
-        filePath: file.path,
-        type: this.getResourceType(file.mimetype),
-        file_size: file.size,
-        mime_type: file.mimetype,
-        store_id: storeId,
-      },
-      omit: { filePath: true },
+    const resource = await this.repo.createResource({
+      workspaceId,
+      name: file.originalname,
+      filePath: file.path,
+      type: this.getResourceType(file.mimetype),
+      file_size: file.size,
+      mime_type: file.mimetype,
+      store_id: storeId,
     });
+
+    this.logger.log(`Resource created in workspace ${workspaceId}`);
+    return resource;
   }
 
   async findAll(userId: number, workspaceId: number) {
-    const workspace = await this.db.workspace.findFirst({
-      where: { id: workspaceId, ...anyMemberFilter(userId) },
-    });
-
+    const workspace = await this.repo.findWorkspaceAsMember(
+      workspaceId,
+      userId,
+    );
     if (!workspace) throw new NotFoundException('Resources not found');
 
-    return this.db.resource.findMany({
-      where: { workspaceId },
-      omit: { filePath: true },
-    });
+    return this.repo.findAllResources(workspaceId);
   }
 
   async getFilePath(userId: number, resourceId: number) {
-    const resource = await this.db.resource.findFirst({
-      where: {
-        id: resourceId,
-        workspace: anyMemberFilter(userId),
-      },
-    });
+    const resource = await this.repo.findResourceAsMember(resourceId, userId);
     if (!resource) throw new NotFoundException('Resource not found');
     return resource;
   }
 
   async remove(userId: number, resourceId: number) {
-    const resource = await this.db.resource.findFirst({
-      where: {
-        id: resourceId,
-        workspace: ownerOrEditorFilter(userId),
-      },
-    });
+    const resource = await this.repo.findResourceAsEditor(resourceId, userId);
     if (!resource) throw new NotFoundException('Resource not found');
 
     await Promise.all([
       unlink(resource.filePath),
       this.gemini.deleteFile(resource.store_id),
     ]);
-    await this.db.resource.delete({ where: { id: resourceId } });
-
+    await this.repo.deleteResource(resourceId);
+    this.logger.log(`Resource ${resourceId} deleted`);
     return { message: 'Resource deleted successfully' };
   }
 
   async findAllGroups(userId: number, workspaceId: number) {
-    const workspace = await this.db.workspace.findFirst({
-      where: { id: workspaceId, ...anyMemberFilter(userId) },
-    });
-
+    const workspace = await this.repo.findWorkspaceAsMember(
+      workspaceId,
+      userId,
+    );
     if (!workspace) throw new NotFoundException('Resource Groups not found');
 
-    return this.db.resourceGroups.findMany({
-      where: { workspaceId },
-      include: { resources: true },
-    });
+    return this.repo.findAllGroups(workspaceId);
   }
 
   async createGroup(
@@ -116,14 +102,14 @@ export class ResourcesService {
   ) {
     const { workspaceId, ...groupData } = createResourceGroupDto;
 
-    const workspace = await this.db.workspace.findFirst({
-      where: { id: workspaceId, ...ownerOrEditorFilter(userId) },
-    });
+    const workspace = await this.repo.findWorkspaceAsEditor(
+      workspaceId,
+      userId,
+    );
     if (!workspace) throw new ForbiddenException('Access denied');
 
-    return this.db.resourceGroups.create({
-      data: { workspaceId, ...groupData },
-    });
+    this.logger.log(`Resource group created in workspace ${workspaceId}`);
+    return this.repo.createGroup(workspaceId, groupData);
   }
 
   async updateGroup(
@@ -131,18 +117,10 @@ export class ResourcesService {
     groupId: number,
     dto: UpdateResourceGroupDto,
   ) {
-    const group = await this.db.resourceGroups.findFirst({
-      where: {
-        id: groupId,
-        workspace: ownerOrEditorFilter(userId),
-      },
-    });
+    const group = await this.repo.findGroupAsEditor(groupId, userId);
     if (!group) throw new NotFoundException('Resource group not found');
 
-    return this.db.resourceGroups.update({
-      where: { id: groupId },
-      data: { name: dto.name },
-    });
+    return this.repo.updateGroup(groupId, dto);
   }
 
   async addResourceToGroup(
@@ -151,28 +129,20 @@ export class ResourcesService {
     resourceId: number,
   ) {
     const [group, resource] = await Promise.all([
-      this.db.resourceGroups.findFirst({
-        where: { id: groupId, workspace: ownerOrEditorFilter(userId) },
-      }),
-      this.db.resource.findFirst({ where: { id: resourceId } }),
+      this.repo.findGroupAsEditor(groupId, userId),
+      this.repo.findResourceById(resourceId),
     ]);
     if (!group) throw new NotFoundException('Resource group not found');
     if (!resource) throw new NotFoundException('Resource not found');
 
-    return this.db.resourceGroups.update({
-      where: { id: groupId },
-      data: { resources: { connect: { id: resourceId } } },
-    });
+    return this.repo.connectResourceToGroup(groupId, resourceId);
   }
 
   async validateResourceIds(
     resourceIds: number[],
     workspaceId: number,
   ): Promise<void> {
-    const found = await this.db.resource.findMany({
-      where: { id: { in: resourceIds }, workspaceId },
-      select: { id: true },
-    });
+    const found = await this.repo.findResourcesByIds(resourceIds, workspaceId);
     if (found.length !== resourceIds.length) {
       const foundIds = found.map((r) => r.id);
       const missing = resourceIds.filter((id) => !foundIds.includes(id));
@@ -186,10 +156,10 @@ export class ResourcesService {
     resourceIds: number[],
     workspaceId: number,
   ): Promise<{ uri: string; mimeType: string }[]> {
-    const resources = await this.db.resource.findMany({
-      where: { id: { in: resourceIds }, workspaceId },
-      select: { store_id: true, mime_type: true },
-    });
+    const resources = await this.repo.findResourcesWithStore(
+      resourceIds,
+      workspaceId,
+    );
     return this.gemini.toGeminiFiles(resources);
   }
 
@@ -199,18 +169,13 @@ export class ResourcesService {
     resourceId: number,
   ) {
     const [group, resource] = await Promise.all([
-      this.db.resourceGroups.findFirst({
-        where: { id: groupId, workspace: ownerOrEditorFilter(userId) },
-      }),
-      this.db.resource.findFirst({ where: { id: resourceId } }),
+      this.repo.findGroupAsEditor(groupId, userId),
+      this.repo.findResourceById(resourceId),
     ]);
     if (!group) throw new NotFoundException('Resource group not found');
     if (!resource) throw new NotFoundException('Resource not found');
 
-    await this.db.resourceGroups.update({
-      where: { id: groupId },
-      data: { resources: { disconnect: { id: resourceId } } },
-    });
+    await this.repo.disconnectResourceFromGroup(groupId, resourceId);
 
     return { message: 'Resource removed from group successfully' };
   }
