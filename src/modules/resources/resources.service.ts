@@ -13,6 +13,7 @@ import { UpdateResourceGroupDto } from './dto/update-resource-group.dto.js';
 import type { IGeminiService } from '../gemini/gemini.interface.js';
 import { GEMINI_SERVICE } from '../gemini/gemini.interface.js';
 import { ResourcesRepository } from './resources.repository.js';
+import { WorkspacesRepository } from '../workspaces/workspaces.repository.js';
 
 @Injectable()
 export class ResourcesService {
@@ -20,6 +21,7 @@ export class ResourcesService {
 
   constructor(
     private readonly repo: ResourcesRepository,
+    private readonly workspacesRepo: WorkspacesRepository,
     @Inject(GEMINI_SERVICE) private readonly gemini: IGeminiService,
   ) {}
 
@@ -31,7 +33,7 @@ export class ResourcesService {
   }
 
   async create(userId: number, workspaceId: number, file: Express.Multer.File) {
-    const workspace = await this.repo.findWorkspaceAsEditor(
+    const workspace = await this.workspacesRepo.findWorkspaceAsEditor(
       workspaceId,
       userId,
     );
@@ -58,7 +60,7 @@ export class ResourcesService {
   }
 
   async findAll(userId: number, workspaceId: number) {
-    const workspace = await this.repo.findWorkspaceAsMember(
+    const workspace = await this.workspacesRepo.findWorkspaceAsMember(
       workspaceId,
       userId,
     );
@@ -87,7 +89,7 @@ export class ResourcesService {
   }
 
   async findAllGroups(userId: number, workspaceId: number) {
-    const workspace = await this.repo.findWorkspaceAsMember(
+    const workspace = await this.workspacesRepo.findWorkspaceAsMember(
       workspaceId,
       userId,
     );
@@ -102,7 +104,7 @@ export class ResourcesService {
   ) {
     const { workspaceId, ...groupData } = createResourceGroupDto;
 
-    const workspace = await this.repo.findWorkspaceAsEditor(
+    const workspace = await this.workspacesRepo.findWorkspaceAsEditor(
       workspaceId,
       userId,
     );

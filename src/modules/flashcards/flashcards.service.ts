@@ -16,6 +16,7 @@ import {
   type GeneratedFlashcardsResponse,
 } from './flashcards.prompts.js';
 import { FlashcardsRepository } from './flashcards.repository.js';
+import { WorkspacesRepository } from '../workspaces/workspaces.repository.js';
 
 @Injectable()
 export class FlashcardsService {
@@ -23,6 +24,7 @@ export class FlashcardsService {
 
   constructor(
     private readonly repo: FlashcardsRepository,
+    private readonly workspacesRepo: WorkspacesRepository,
     @Inject(GEMINI_SERVICE) private readonly gemini: IGeminiService,
     private readonly resourcesSvc: ResourcesService,
   ) {}
@@ -30,7 +32,10 @@ export class FlashcardsService {
   async create(userId: number, dto: CreateFlashcardDto) {
     const { workspaceId, difficulty, count = 5, resourceIds } = dto;
 
-    const workspace = await this.repo.findWorkspaceAsEditor(workspaceId, userId);
+    const workspace = await this.workspacesRepo.findWorkspaceAsEditor(
+      workspaceId,
+      userId,
+    );
     if (!workspace) throw new ForbiddenException('Access denied');
 
     await this.resourcesSvc.validateResourceIds(resourceIds, workspaceId);
@@ -53,7 +58,9 @@ export class FlashcardsService {
       throw new BadRequestException('Gemini returned no flashcards.');
     }
 
-    this.logger.log(`Creating ${parsed.flashcards.length} flashcards in workspace ${workspaceId}`);
+    this.logger.log(
+      `Creating ${parsed.flashcards.length} flashcards in workspace ${workspaceId}`,
+    );
 
     return this.repo.createMany(
       workspaceId,
@@ -67,7 +74,10 @@ export class FlashcardsService {
   }
 
   async findAll(userId: number, workspaceId: number) {
-    const workspace = await this.repo.findWorkspaceAsMember(workspaceId, userId);
+    const workspace = await this.workspacesRepo.findWorkspaceAsMember(
+      workspaceId,
+      userId,
+    );
     if (!workspace) throw new NotFoundException('Workspace not found');
 
     return this.repo.findAll(workspaceId);

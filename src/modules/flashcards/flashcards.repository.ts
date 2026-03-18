@@ -5,6 +5,7 @@ import {
   ownerOrEditorFilter,
 } from '../../common/utils/workspace-filters.js';
 import { UpdateFlashcardDto } from './dto/update-flashcard.dto.js';
+import { Difficulty } from '../../../generated/prisma/client.js';
 
 const resourcesInclude = {
   resources: { include: { resource: true } },
@@ -14,21 +15,13 @@ const resourcesInclude = {
 export class FlashcardsRepository {
   constructor(private readonly db: DatabaseService) {}
 
-  findWorkspaceAsEditor(workspaceId: number, userId: number) {
-    return this.db.workspace.findFirst({
-      where: { id: workspaceId, ...ownerOrEditorFilter(userId) },
-    });
-  }
-
-  findWorkspaceAsMember(workspaceId: number, userId: number) {
-    return this.db.workspace.findFirst({
-      where: { id: workspaceId, ...anyMemberFilter(userId) },
-    });
-  }
-
   createMany(
     workspaceId: number,
-    flashcards: { question: string; answer: string; difficulty: string | null }[],
+    flashcards: {
+      question: string;
+      answer: string;
+      difficulty: Difficulty | null;
+    }[],
     resourceIds: number[],
   ) {
     return this.db.$transaction(async (tx) => {
@@ -37,7 +30,7 @@ export class FlashcardsRepository {
           workspaceId,
           question: f.question,
           answer: f.answer,
-          difficulty: f.difficulty as any,
+          difficulty: f.difficulty,
         })),
       });
 

@@ -4,9 +4,11 @@ import {
   HttpCode,
   HttpStatus,
   Post,
+  Res,
   UseGuards,
 } from '@nestjs/common';
 import { ApiOperation, ApiBearerAuth, ApiBody } from '@nestjs/swagger';
+import type { Response } from 'express';
 import { AuthService } from './auth.service.js';
 import { RegisterDto } from './dto/register.dto.js';
 import { LoginDto } from './dto/login.dto.js';
@@ -26,8 +28,13 @@ export class AuthController {
   @Public()
   @Post('register')
   @ApiOperation({ summary: 'Register with email & password' })
-  register(@Body() dto: RegisterDto) {
-    return this.authService.register(dto);
+  async register(
+    @Body() dto: RegisterDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const tokens = await this.authService.register(dto);
+    this.setRefreshTokenCookie(res, tokens.refreshToken);
+    return tokens;
   }
 
   @Public()
@@ -36,24 +43,38 @@ export class AuthController {
   @Post('login')
   @ApiOperation({ summary: 'Login with email & password' })
   @ApiBody({ type: LoginDto })
-  login(@GetUser() user: User) {
-    return this.authService.login(user.id, user.email);
+  async login(
+    @GetUser() user: User,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const tokens = await this.authService.login(user.id, user.email);
+    this.setRefreshTokenCookie(res, tokens.refreshToken);
+    return tokens;
   }
 
   @HttpCode(HttpStatus.NO_CONTENT)
   @Post('logout')
   @ApiBearerAuth('accessToken')
   @ApiOperation({ summary: 'Logout (invalidates refresh token)' })
-  logout(@GetUser('sub') userId: number) {
-    return this.authService.logout(userId);
+  async logout(
+    @GetUser('sub') userId: number,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    await this.authService.logout(userId);
+    res.clearCookie('refreshToken');
   }
 
   @Public()
   @HttpCode(HttpStatus.OK)
   @Post('google')
   @ApiOperation({ summary: 'Login with Google ID token' })
-  googleLogin(@Body() dto: GoogleLoginDto) {
-    return this.authService.googleLogin(dto.accessToken);
+  async googleLogin(
+    @Body() dto: GoogleLoginDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const tokens = await this.authService.googleLogin(dto.accessToken);
+    this.setRefreshTokenCookie(res, tokens.refreshToken);
+    return tokens;
   }
 
   @Public()
@@ -62,11 +83,25 @@ export class AuthController {
   @Post('refresh')
   @ApiOperation({ summary: 'Get new access + refresh tokens' })
   @ApiBody({ type: RefreshDto })
-  refresh(@GetUser() user: JwtPayload & { refreshToken: string }) {
-    return this.authService.refreshTokens(
+  async refresh(
+    @GetUser() user: JwtPayload & { refreshToken: string },
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const tokens = await this.authService.refreshTokens(
       user.sub,
       user.email,
       user.refreshToken,
     );
+    this.setRefreshTokenCookie(res, tokens.refreshToken);
+    return tokens;
+  }
+
+  private setRefreshTokenCookie(res: Response, refreshToken: string) {
+    res.cookie('refreshToken', refreshToken, {
+      httpOnly: true,
+      secure: process.env['NODE_ENV'] === 'production',
+      sameSite: 'lax',
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+    });
   }
 }

@@ -9,12 +9,6 @@ import {
 export class QuizzesRepository {
   constructor(private readonly db: DatabaseService) {}
 
-  findWorkspaceAsEditor(workspaceId: number, userId: number) {
-    return this.db.workspace.findFirst({
-      where: { id: workspaceId, ...ownerOrEditorFilter(userId) },
-    });
-  }
-
   findQuestionsByIds(questionIds: number[]) {
     return this.db.question.findMany({
       where: { id: { in: questionIds } },
@@ -56,12 +50,6 @@ export class QuizzesRepository {
         questions: { select: { id: true } },
         _count: { select: { attempts: true } },
       },
-    });
-  }
-
-  findWorkspaceAsMember(workspaceId: number, userId: number) {
-    return this.db.workspace.findFirst({
-      where: { id: workspaceId, ...anyMemberFilter(userId) },
     });
   }
 

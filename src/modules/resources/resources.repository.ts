@@ -11,18 +11,6 @@ import { UpdateResourceGroupDto } from './dto/update-resource-group.dto.js';
 export class ResourcesRepository {
   constructor(private readonly db: DatabaseService) {}
 
-  findWorkspaceAsEditor(workspaceId: number, userId: number) {
-    return this.db.workspace.findFirst({
-      where: { id: workspaceId, ...ownerOrEditorFilter(userId) },
-    });
-  }
-
-  findWorkspaceAsMember(workspaceId: number, userId: number) {
-    return this.db.workspace.findFirst({
-      where: { id: workspaceId, ...anyMemberFilter(userId) },
-    });
-  }
-
   createResource(data: {
     workspaceId: number;
     name: string;

@@ -4,9 +4,10 @@ import { QuizzesController } from './quizzes.controller.js';
 import { DatabaseModule } from '../../common/database/database.module.js';
 import { QuizGradingService } from './quiz-grading.service.js';
 import { QuizzesRepository } from './quizzes.repository.js';
+import { WorkspacesModule } from '../workspaces/workspaces.module.js';
 
 @Module({
-  imports: [DatabaseModule],
+  imports: [DatabaseModule, WorkspacesModule],
   controllers: [QuizzesController],
   providers: [QuizzesService, QuizGradingService, QuizzesRepository],
 })

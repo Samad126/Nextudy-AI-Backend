@@ -3,6 +3,10 @@ import { DatabaseService } from '../../common/database/database.service.js';
 import { CreateWorkspaceDto } from './dto/create-workspace.dto.js';
 import { UpdateWorkspaceDto } from './dto/update-workspace.dto.js';
 import { UpdateMemberRoleDto } from './dto/update-member-role.dto.js';
+import {
+  anyMemberFilter,
+  ownerOrEditorFilter,
+} from '../../common/utils/workspace-filters.js';
 
 @Injectable()
 export class WorkspacesRepository {
@@ -36,10 +40,13 @@ export class WorkspacesRepository {
 
   findWorkspaceAsMember(workspaceId: number, userId: number) {
     return this.db.workspace.findFirst({
-      where: {
-        id: workspaceId,
-        OR: [{ ownerId: userId }, { members: { some: { userId } } }],
-      },
+      where: { id: workspaceId, ...anyMemberFilter(userId) },
+    });
+  }
+
+  findWorkspaceAsEditor(workspaceId: number, userId: number) {
+    return this.db.workspace.findFirst({
+      where: { id: workspaceId, ...ownerOrEditorFilter(userId) },
     });
   }
 

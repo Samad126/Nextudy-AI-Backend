@@ -9,6 +9,7 @@ import { CreateQuizDto } from './dto/create-quiz.dto.js';
 import { SubmitQuizDto } from './dto/submit-quiz.dto.js';
 import { QuizGradingService } from './quiz-grading.service.js';
 import { QuizzesRepository } from './quizzes.repository.js';
+import { WorkspacesRepository } from '../workspaces/workspaces.repository.js';
 
 @Injectable()
 export class QuizzesService {
@@ -16,13 +17,17 @@ export class QuizzesService {
 
   constructor(
     private readonly repo: QuizzesRepository,
+    private readonly workspacesRepo: WorkspacesRepository,
     private readonly gradingService: QuizGradingService,
   ) {}
 
   async create(userId: number, createQuizDto: CreateQuizDto) {
     const { workspaceId, title, description, questionIds } = createQuizDto;
 
-    const workspace = await this.repo.findWorkspaceAsEditor(workspaceId, userId);
+    const workspace = await this.workspacesRepo.findWorkspaceAsEditor(
+      workspaceId,
+      userId,
+    );
     if (!workspace) throw new ForbiddenException('Access denied');
 
     const questions = await this.repo.findQuestionsByIds(questionIds);
@@ -36,11 +41,19 @@ export class QuizzesService {
     }
 
     this.logger.log(`Creating quiz in workspace ${workspaceId}`);
-    return this.repo.createQuiz({ workspaceId, title, description, questionIds });
+    return this.repo.createQuiz({
+      workspaceId,
+      title,
+      description,
+      questionIds,
+    });
   }
 
   async findAll(userId: number, workspaceId: number) {
-    const workspace = await this.repo.findWorkspaceAsMember(workspaceId, userId);
+    const workspace = await this.workspacesRepo.findWorkspaceAsMember(
+      workspaceId,
+      userId,
+    );
     if (!workspace) throw new NotFoundException('Workspace not found');
 
     return this.repo.findAllQuizzes(workspaceId, userId);
@@ -82,14 +95,22 @@ export class QuizzesService {
 
     const answers = submitDto.answers.map(({ quizQuestionId, userAnswer }) => {
       const qq = quizQuestionMap.get(quizQuestionId)!;
-      const isCorrect = this.gradingService.gradeAnswer(qq.question, userAnswer);
+      const isCorrect = this.gradingService.gradeAnswer(
+        qq.question,
+        userAnswer,
+      );
       return { quizQuestionId, userAnswer: String(userAnswer), isCorrect };
     });
 
     const correctCount = answers.filter((a) => a.isCorrect).length;
     const score = Math.round((correctCount / quiz.questions.length) * 100);
 
-    return this.repo.createAttemptWithAnswers({ quizId, userId, score, answers });
+    return this.repo.createAttemptWithAnswers({
+      quizId,
+      userId,
+      score,
+      answers,
+    });
   }
 
   async getAttempts(userId: number, quizId: number) {
