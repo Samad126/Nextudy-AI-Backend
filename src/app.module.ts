@@ -1,8 +1,10 @@
 import { Module } from '@nestjs/common';
 import { DatabaseModule } from './common/database/database.module.js';
-import { APP_FILTER, APP_GUARD } from '@nestjs/core';
+import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { JwtAccessGuard } from './common/guards/jwt-access.guard.js';
 import { PrismaClientExceptionFilter } from './common/filters/prisma-exception.filter.js';
+import { HttpExceptionFilter } from './common/filters/http-exception.filter.js';
+import { TransformInterceptor } from './common/interceptors/transform.interceptor.js';
 import { AuthModule } from './modules/auth/auth.module.js';
 import { WorkspacesModule } from './modules/workspaces/workspaces.module.js';
 import { ResourcesModule } from './modules/resources/resources.module.js';
@@ -31,14 +33,10 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
     NotificationsModule,
   ],
   providers: [
-    {
-      provide: APP_FILTER,
-      useClass: PrismaClientExceptionFilter,
-    },
-    {
-      provide: APP_GUARD,
-      useClass: JwtAccessGuard,
-    },
+    { provide: APP_INTERCEPTOR, useClass: TransformInterceptor },
+    { provide: APP_FILTER, useClass: HttpExceptionFilter },
+    { provide: APP_FILTER, useClass: PrismaClientExceptionFilter },
+    { provide: APP_GUARD, useClass: JwtAccessGuard },
   ],
 })
 export class AppModule {}

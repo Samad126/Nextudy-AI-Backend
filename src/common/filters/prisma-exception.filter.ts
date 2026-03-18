@@ -12,14 +12,20 @@ export class PrismaClientExceptionFilter extends BaseExceptionFilter {
     switch (exception.code) {
       case 'P2002':
         response.status(HttpStatus.CONFLICT).json({
-          statusCode: HttpStatus.CONFLICT,
-          message: 'A record with this value already exists',
+          success: false,
+          error: {
+            code: 'CONFLICT',
+            message: 'A record with this value already exists',
+          },
         });
         break;
-      case 'P2025': // Record not found
+      case 'P2025':
         response.status(HttpStatus.NOT_FOUND).json({
-          statusCode: HttpStatus.NOT_FOUND,
-          message: 'Record not found',
+          success: false,
+          error: {
+            code: 'NOT_FOUND',
+            message: 'Record not found',
+          },
         });
         break;
       default:
