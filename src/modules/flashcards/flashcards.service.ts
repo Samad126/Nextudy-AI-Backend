@@ -6,8 +6,9 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { CreateFlashcardDto } from './dto/create-flashcard.dto.js';
-import { UpdateFlashcardDto } from './dto/update-flashcard.dto.js';
+import { CreateFlashcardSetDto } from './dto/create-flashcard-set.dto.js';
+import { UpdateFlashcardSetDto } from './dto/update-flashcard-set.dto.js';
+import { UpdateFlashcardCardDto } from './dto/update-flashcard-card.dto.js';
 import type { IGeminiService } from '../gemini/gemini.interface.js';
 import { GEMINI_SERVICE } from '../gemini/gemini.interface.js';
 import { ResourcesService } from '../resources/resources.service.js';
@@ -29,8 +30,15 @@ export class FlashcardsService {
     private readonly resourcesSvc: ResourcesService,
   ) {}
 
-  async create(userId: number, dto: CreateFlashcardDto) {
-    const { workspaceId, difficulty, count = 5, resourceIds } = dto;
+  async createSet(userId: number, dto: CreateFlashcardSetDto) {
+    const {
+      workspaceId,
+      title,
+      description,
+      difficulty,
+      count = 5,
+      resourceIds,
+    } = dto;
 
     const workspace = await this.workspacesRepo.findWorkspaceAsEditor(
       workspaceId,
@@ -59,11 +67,13 @@ export class FlashcardsService {
     }
 
     this.logger.log(
-      `Creating ${parsed.flashcards.length} flashcards in workspace ${workspaceId}`,
+      `Creating flashcard set "${title}" with ${parsed.flashcards.length} cards in workspace ${workspaceId}`,
     );
 
-    return this.repo.createMany(
+    return this.repo.createSet(
       workspaceId,
+      title,
+      description,
       parsed.flashcards.map((f) => ({
         question: f.question,
         answer: f.answer,
@@ -84,35 +94,50 @@ export class FlashcardsService {
   }
 
   async findOne(userId: number, id: number) {
-    const flashcard = await this.repo.findOneAsMember(id, userId);
-    if (!flashcard) throw new NotFoundException('Flashcard not found');
-    return flashcard;
+    const set = await this.repo.findOneAsMember(id, userId);
+    if (!set) throw new NotFoundException('Flashcard set not found');
+    return set;
   }
 
-  async update(userId: number, id: number, dto: UpdateFlashcardDto) {
-    const flashcard = await this.repo.findOneAsEditor(id, userId);
-    if (!flashcard) throw new NotFoundException('Flashcard not found');
+  async updateSet(userId: number, id: number, dto: UpdateFlashcardSetDto) {
+    const set = await this.repo.findOneAsEditor(id, userId);
+    if (!set) throw new NotFoundException('Flashcard set not found');
 
     const { resourceIds, ...scalars } = dto;
 
     if (resourceIds !== undefined) {
-      await this.resourcesSvc.validateResourceIds(
-        resourceIds,
-        flashcard.workspaceId,
-      );
-
-      return this.repo.updateWithResources(id, scalars, resourceIds);
+      await this.resourcesSvc.validateResourceIds(resourceIds, set.workspaceId);
+      return this.repo.updateSetWithResources(id, scalars, resourceIds);
     }
 
-    return this.repo.update(id, scalars);
+    return this.repo.updateSet(id, scalars);
   }
 
-  async remove(userId: number, id: number) {
-    const flashcard = await this.repo.findOneAsEditor(id, userId);
-    if (!flashcard) throw new NotFoundException('Flashcard not found');
+  async removeSet(userId: number, id: number) {
+    const set = await this.repo.findOneAsEditor(id, userId);
+    if (!set) throw new NotFoundException('Flashcard set not found');
 
-    await this.repo.delete(id);
-    this.logger.log(`Flashcard ${id} deleted`);
-    return { message: 'Flashcard deleted successfully' };
+    await this.repo.deleteSet(id);
+    this.logger.log(`Flashcard set ${id} deleted`);
+    return { message: 'Flashcard set deleted successfully' };
+  }
+
+  async updateCard(
+    userId: number,
+    cardId: number,
+    dto: UpdateFlashcardCardDto,
+  ) {
+    const card = await this.repo.findCardAsEditor(cardId, userId);
+    if (!card) throw new NotFoundException('Flashcard card not found');
+
+    return this.repo.updateCard(cardId, dto);
+  }
+
+  async removeCard(userId: number, cardId: number) {
+    const card = await this.repo.findCardAsEditor(cardId, userId);
+    if (!card) throw new NotFoundException('Flashcard card not found');
+
+    await this.repo.deleteCard(cardId);
+    return { message: 'Flashcard card deleted successfully' };
   }
 }

@@ -2,16 +2,9 @@ import { Injectable } from '@nestjs/common';
 import { DatabaseService } from '../../common/database/database.service.js';
 import { anyMemberFilter } from '../../common/utils/workspace-filters.js';
 import { MessageRole } from '../../../generated/prisma/client.js';
-
 @Injectable()
 export class ChatRepository {
   constructor(private readonly db: DatabaseService) {}
-
-  findWorkbench(workbenchId: number, userId: number) {
-    return this.db.workbench.findFirst({
-      where: { id: workbenchId, workspace: anyMemberFilter(userId) },
-    });
-  }
 
   createChat(data: {
     workbenchId: number;
@@ -55,13 +48,6 @@ export class ChatRepository {
 
   deleteChat(chatId: number) {
     return this.db.chatHistory.delete({ where: { id: chatId } });
-  }
-
-  findWorkbenchResources(workbenchId: number) {
-    return this.db.workbenchResource.findMany({
-      where: { workbenchId },
-      include: { resource: true },
-    });
   }
 
   createMessage(data: {

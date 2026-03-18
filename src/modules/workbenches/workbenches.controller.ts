@@ -40,10 +40,10 @@ export class WorkbenchesController {
     return this.workbenchesService.findAll(userId, workspaceId);
   }
 
-  @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.workbenchesService.findOne(+id);
-  }
+  // @Get(':id')
+  // findOne(@Param('id') id: string) {
+  //   return this.workbenchesService.findOne(+id);
+  // }
 
   @Patch(':id')
   @ApiOperation({ summary: 'Update a workbench' })

@@ -93,7 +93,7 @@ model Workspace {
   invites        WorkspaceInvite[]
   workbenches    Workbench[]
   resources      Resource[]
-  flashcards     Flashcard[]
+  flashcardSets  FlashcardSet[]
   quizzes        Quiz[]
   resourceGroups ResourceGroups[]
 
@@ -209,38 +209,52 @@ model Resource {
   workspace      Workspace           @relation(fields: [workspaceId], references: [id])
   resourceGroups ResourceGroups[]    @relation("ResourceToGroup")
   workbenches    WorkbenchResource[]
-  flashcards     FlashcardResource[]
+  flashcardSets  FlashcardResource[]
 
   @@index([workspaceId])
 }
 
 // ============= FLASHCARDS =============
 
-model Flashcard {
-  id          Int         @id @default(autoincrement())
+model FlashcardSet {
+  id          Int      @id @default(autoincrement())
   workspaceId Int
-  question    String
-  answer      String
-  difficulty  Difficulty?
-  created_at  DateTime    @default(now())
-  updated_at  DateTime    @updatedAt
+  title       String
+  description String?
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
 
-  workspace Workspace          @relation(fields: [workspaceId], references: [id])
-  resources FlashcardResource[]
+  workspace  Workspace           @relation(fields: [workspaceId], references: [id])
+  cards      Flashcard[]
+  resources  FlashcardResource[]
 
   @@index([workspaceId])
 }
 
+model Flashcard {
+  id             Int         @id @default(autoincrement())
+  flashcardSetId Int
+  question       String
+  answer         String
+  difficulty     Difficulty?
+  created_at     DateTime    @default(now())
+  updated_at     DateTime    @updatedAt
+
+  set FlashcardSet @relation(fields: [flashcardSetId], references: [id], onDelete: Cascade)
+
+  @@index([flashcardSetId])
+}
+
 model FlashcardResource {
-  flashcardId Int
-  resourceId  Int
-  added_at    DateTime @default(now())
+  flashcardSetId Int
+  resourceId     Int
+  added_at       DateTime @default(now())
 
-  flashcard Flashcard @relation(fields: [flashcardId], references: [id], onDelete: Cascade)
-  resource  Resource  @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+  flashcardSet FlashcardSet @relation(fields: [flashcardSetId], references: [id], onDelete: Cascade)
+  resource     Resource     @relation(fields: [resourceId], references: [id], onDelete: Cascade)
 
-  @@id([flashcardId, resourceId])
-  @@index([flashcardId])
+  @@id([flashcardSetId, resourceId])
+  @@index([flashcardSetId])
   @@index([resourceId])
 }
 

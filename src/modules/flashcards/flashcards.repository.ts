@@ -4,10 +4,12 @@ import {
   anyMemberFilter,
   ownerOrEditorFilter,
 } from '../../common/utils/workspace-filters.js';
-import { UpdateFlashcardDto } from './dto/update-flashcard.dto.js';
+import { UpdateFlashcardSetDto } from './dto/update-flashcard-set.dto.js';
+import { UpdateFlashcardCardDto } from './dto/update-flashcard-card.dto.js';
 import { Difficulty } from '../../../generated/prisma/client.js';
 
-const resourcesInclude = {
+const setInclude = {
+  cards: { orderBy: { created_at: 'asc' as const } },
   resources: { include: { resource: true } },
 } as const;
 
@@ -15,91 +17,107 @@ const resourcesInclude = {
 export class FlashcardsRepository {
   constructor(private readonly db: DatabaseService) {}
 
-  createMany(
+  createSet(
     workspaceId: number,
-    flashcards: {
+    title: string,
+    description: string | undefined,
+    cards: {
       question: string;
       answer: string;
       difficulty: Difficulty | null;
     }[],
     resourceIds: number[],
   ) {
-    return this.db.$transaction(async (tx) => {
-      const flashcardRows = await tx.flashcard.createManyAndReturn({
-        data: flashcards.map((f) => ({
-          workspaceId,
-          question: f.question,
-          answer: f.answer,
-          difficulty: f.difficulty,
-        })),
-      });
-
-      await tx.flashcardResource.createMany({
-        data: flashcardRows.flatMap((fc) =>
-          resourceIds.map((resourceId) => ({
-            flashcardId: fc.id,
-            resourceId,
+    return this.db.flashcardSet.create({
+      data: {
+        workspaceId,
+        title,
+        description,
+        cards: {
+          create: cards.map((c) => ({
+            question: c.question,
+            answer: c.answer,
+            difficulty: c.difficulty,
           })),
-        ),
-      });
-
-      return tx.flashcard.findMany({
-        where: { id: { in: flashcardRows.map((fc) => fc.id) } },
-        include: resourcesInclude,
-      });
+        },
+        resources: {
+          create: resourceIds.map((resourceId) => ({ resourceId })),
+        },
+      },
+      include: setInclude,
     });
   }
 
   findAll(workspaceId: number) {
-    return this.db.flashcard.findMany({
+    return this.db.flashcardSet.findMany({
       where: { workspaceId },
-      include: resourcesInclude,
+      include: setInclude,
       orderBy: { created_at: 'desc' },
     });
   }
 
   findOneAsMember(id: number, userId: number) {
-    return this.db.flashcard.findFirst({
+    return this.db.flashcardSet.findFirst({
       where: { id, workspace: { ...anyMemberFilter(userId) } },
-      include: resourcesInclude,
+      include: setInclude,
     });
   }
 
   findOneAsEditor(id: number, userId: number) {
-    return this.db.flashcard.findFirst({
+    return this.db.flashcardSet.findFirst({
       where: { id, workspace: { ...ownerOrEditorFilter(userId) } },
     });
   }
 
-  updateWithResources(
+  updateSet(id: number, dto: Omit<UpdateFlashcardSetDto, 'resourceIds'>) {
+    return this.db.flashcardSet.update({
+      where: { id },
+      data: dto,
+      include: setInclude,
+    });
+  }
+
+  updateSetWithResources(
     id: number,
-    scalars: Omit<UpdateFlashcardDto, 'resourceIds'>,
+    dto: Omit<UpdateFlashcardSetDto, 'resourceIds'>,
     resourceIds: number[],
   ) {
     return this.db.$transaction(async (tx) => {
-      await tx.flashcardResource.deleteMany({ where: { flashcardId: id } });
-      return tx.flashcard.update({
+      await tx.flashcardResource.deleteMany({ where: { flashcardSetId: id } });
+      return tx.flashcardSet.update({
         where: { id },
         data: {
-          ...scalars,
+          ...dto,
           resources: {
             create: resourceIds.map((resourceId) => ({ resourceId })),
           },
         },
-        include: resourcesInclude,
+        include: setInclude,
       });
     });
   }
 
-  update(id: number, scalars: Omit<UpdateFlashcardDto, 'resourceIds'>) {
-    return this.db.flashcard.update({
-      where: { id },
-      data: scalars,
-      include: resourcesInclude,
+  deleteSet(id: number) {
+    return this.db.flashcardSet.delete({ where: { id } });
+  }
+
+  findCardAsEditor(cardId: number, userId: number) {
+    return this.db.flashcard.findFirst({
+      where: {
+        id: cardId,
+        set: { workspace: { ...ownerOrEditorFilter(userId) } },
+      },
     });
   }
 
-  delete(id: number) {
-    return this.db.flashcard.delete({ where: { id } });
+  updateCard(cardId: number, dto: UpdateFlashcardCardDto) {
+    return this.db.flashcard.update({
+      where: { id: cardId },
+      data: dto,
+    });
+  }
+
+  deleteCard(cardId: number) {
+    return this.db.flashcard.delete({ where: { id: cardId } });
   }
 }

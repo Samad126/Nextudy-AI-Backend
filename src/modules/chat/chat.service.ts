@@ -18,6 +18,7 @@ import {
   type ChatAIResponse,
 } from './chat.prompts.js';
 import { ChatRepository } from './chat.repository.js';
+import { WorkbenchesRepository } from '../workbenches/workbenches.repository.js';
 
 const MODEL_ID = 'gemini-3.1-flash-lite-preview';
 
@@ -34,11 +35,15 @@ export class ChatService {
 
   constructor(
     private readonly repo: ChatRepository,
+    private readonly workbenchesRepo: WorkbenchesRepository,
     @Inject(GEMINI_SERVICE) private readonly gemini: IGeminiService,
   ) {}
 
   private async getWorkbenchForUser(userId: number, workbenchId: number) {
-    const workbench = await this.repo.findWorkbench(workbenchId, userId);
+    const workbench = await this.workbenchesRepo.findOneAsMember(
+      workbenchId,
+      userId,
+    );
     if (!workbench) throw new NotFoundException('Workbench not found');
     return workbench;
   }
@@ -105,7 +110,7 @@ export class ChatService {
     existingHistory: { role: 'user' | 'model'; content: string }[] = [],
   ) {
     const workbenchResources =
-      await this.repo.findWorkbenchResources(workbenchId);
+      await this.workbenchesRepo.findResources(workbenchId);
     const resources = workbenchResources.map((wr) => wr.resource);
 
     const userMsg = await this.repo.createMessage({

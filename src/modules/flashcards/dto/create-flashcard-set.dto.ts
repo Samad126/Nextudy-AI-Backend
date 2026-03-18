@@ -4,16 +4,28 @@ import {
   IsEnum,
   IsInt,
   IsOptional,
+  IsString,
   Min,
   Max,
   ArrayMinSize,
+  MinLength,
 } from 'class-validator';
 import { Difficulty } from '../../../../generated/prisma/client.js';
 
-export class CreateFlashcardDto {
+export class CreateFlashcardSetDto {
   @ApiProperty()
   @IsInt()
   workspaceId: number;
+
+  @ApiProperty()
+  @IsString()
+  @MinLength(1)
+  title: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  description?: string;
 
   @ApiPropertyOptional({ enum: Difficulty })
   @IsOptional()
