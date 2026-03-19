@@ -10,8 +10,8 @@ import { ResourceType } from '../../../generated/prisma/client.js';
 import { unlink } from 'fs/promises';
 import { CreateResourceGroupDto } from './dto/create-resource-group.dto.js';
 import { UpdateResourceGroupDto } from './dto/update-resource-group.dto.js';
-import type { IGeminiService } from '../gemini/gemini.interface.js';
-import { GEMINI_SERVICE } from '../gemini/gemini.interface.js';
+import type { IGeminiFileService } from '../gemini/gemini-file.interface.js';
+import { GEMINI_FILE_SERVICE } from '../gemini/gemini-file.interface.js';
 import { ResourcesRepository } from './resources.repository.js';
 import { WorkspacesRepository } from '../workspaces/workspaces.repository.js';
 
@@ -22,7 +22,7 @@ export class ResourcesService {
   constructor(
     private readonly repo: ResourcesRepository,
     private readonly workspacesRepo: WorkspacesRepository,
-    @Inject(GEMINI_SERVICE) private readonly gemini: IGeminiService,
+    @Inject(GEMINI_FILE_SERVICE) private readonly gemini: IGeminiFileService,
   ) {}
 
   private getResourceType(mimetype: string): ResourceType {
@@ -162,7 +162,12 @@ export class ResourcesService {
       resourceIds,
       workspaceId,
     );
-    return this.gemini.toGeminiFiles(resources);
+    if (resources.length === 0) {
+      throw new BadRequestException(
+        'None of the selected resources have been uploaded to Gemini yet.',
+      );
+    }
+    return resources.map((r) => ({ uri: r.store_id, mimeType: r.mime_type }));
   }
 
   async removeResourceFromGroup(

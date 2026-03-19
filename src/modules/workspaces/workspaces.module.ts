@@ -5,6 +5,8 @@ import { DatabaseModule } from '../../common/database/database.module.js';
 import { WorkspacesRepository } from './workspaces.repository.js';
 import { WorkspaceMembersService } from './workspace-members.service.js';
 import { WorkspaceInvitesService } from './workspace-invites.service.js';
+import { WorkspaceMembersRepository } from './workspace-members.repository.js';
+import { WorkspaceInvitesRepository } from './workspace-invites.repository.js';
 
 @Module({
   imports: [DatabaseModule],
@@ -14,7 +16,13 @@ import { WorkspaceInvitesService } from './workspace-invites.service.js';
     WorkspaceMembersService,
     WorkspaceInvitesService,
     WorkspacesRepository,
+    WorkspaceMembersRepository,
+    WorkspaceInvitesRepository,
   ],
-  exports: [WorkspacesRepository],
+  exports: [
+    WorkspacesRepository,
+    WorkspaceMembersRepository,
+    WorkspaceInvitesService,
+  ],
 })
 export class WorkspacesModule {}

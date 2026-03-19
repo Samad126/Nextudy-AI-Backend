@@ -2,9 +2,11 @@ import { GoogleGenerativeAI, GenerativeModel } from '@google/generative-ai';
 import { GoogleAIFileManager } from '@google/generative-ai/server';
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import type { IGeminiService } from './gemini.interface.js';
+import type { IGeminiFileService } from './gemini-file.interface.js';
 
 @Injectable()
-export class GeminiService {
+export class GeminiService implements IGeminiService, IGeminiFileService {
   private readonly logger = new Logger(GeminiService.name);
   private genAI: GoogleGenerativeAI;
   private model: GenerativeModel;
