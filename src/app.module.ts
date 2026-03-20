@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { DatabaseModule } from './common/database/database.module.js';
+import { RedisModule } from './common/redis/redis.module.js';
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { JwtAccessGuard } from './common/guards/jwt-access.guard.js';
 import { PrismaClientExceptionFilter } from './common/filters/prisma-exception.filter.js';
@@ -21,6 +22,7 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
   imports: [
     ConfigModule.forRoot({ isGlobal: true, envFilePath: ['../.env', '.env'] }),
     DatabaseModule,
+    RedisModule,
     AuthModule,
     WorkspacesModule,
     SettingsModule,

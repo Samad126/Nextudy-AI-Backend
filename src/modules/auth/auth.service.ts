@@ -7,10 +7,12 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import * as argon2 from 'argon2';
+import { randomUUID } from 'crypto';
 import { DatabaseService } from '../../common/database/database.service.js';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { RegisterDto } from './dto/register.dto.js';
+import { RedisService } from '../../common/redis/redis.service.js';
 
 @Injectable()
 export class AuthService {
@@ -20,6 +22,7 @@ export class AuthService {
     private readonly db: DatabaseService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
+    private readonly redis: RedisService,
   ) {}
 
   async register(dto: RegisterDto) {
@@ -61,11 +64,22 @@ export class AuthService {
     return tokens;
   }
 
-  async logout(userId: number) {
+  async logout(userId: number, accessToken: string) {
     await this.db.user.update({
       where: { id: userId },
       data: { hashedRefreshToken: null },
     });
+
+    const payload = this.jwtService.decode<{ jti?: string; exp?: number }>(
+      accessToken,
+    );
+    if (payload?.jti && payload?.exp) {
+      const ttl = payload.exp - Math.floor(Date.now() / 1000);
+      if (ttl > 0) {
+        await this.redis.setex(`bl:${payload.jti}`, ttl, '1');
+      }
+    }
+
     this.logger.log(`User ${userId} logged out`);
   }
 
@@ -130,12 +144,13 @@ export class AuthService {
   }
 
   private async generateTokens(userId: number, email: string) {
+    const jti = randomUUID();
     const [accessToken, refreshToken] = await Promise.all([
       this.jwtService.signAsync(
-        { sub: userId, email },
+        { sub: userId, email, jti },
         {
           secret: this.configService.get<string>('JWT_ACCESS_SECRET'),
-          expiresIn: '1d',
+          expiresIn: '15m',
         },
       ),
       this.jwtService.signAsync(

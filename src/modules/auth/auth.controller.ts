@@ -4,6 +4,7 @@ import {
   HttpCode,
   HttpStatus,
   Post,
+  Req,
   Res,
   UseGuards,
 } from '@nestjs/common';
@@ -19,7 +20,9 @@ import { JwtRefreshGuard } from '../../common/guards/jwt-refresh.guard.js';
 import { GetUser } from '../../common/decorators/get-user.decorator.js';
 import { Public } from '../../common/decorators/public.decorator.js';
 import { JwtPayload } from './types/jwt-payload.type.js';
+import { extractJwtFromCookieOrHeader } from './util/jwtExtractor.js';
 import type { User } from '../../../generated/prisma/client.js';
+import type { Request } from 'express';
 
 @Controller('auth')
 export class AuthController {
@@ -58,9 +61,11 @@ export class AuthController {
   @ApiOperation({ summary: 'Logout (invalidates refresh token)' })
   async logout(
     @GetUser('sub') userId: number,
+    @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ) {
-    await this.authService.logout(userId);
+    const accessToken = extractJwtFromCookieOrHeader(req) ?? '';
+    await this.authService.logout(userId, accessToken);
     res.clearCookie('refreshToken');
   }
 
