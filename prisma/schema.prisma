@@ -261,14 +261,15 @@ model FlashcardResource {
 // ============= QUESTIONS =============
 
 model Question {
-  id            Int          @id @default(autoincrement())
-  workbenchId   Int
-  title         String
-  question_type QuestionType
-  answer_source AnswerSource @default(ai)
-  explanation   String?
-  difficulty    Difficulty?
-  created_at    DateTime     @default(now())
+  id                Int          @id @default(autoincrement())
+  workbenchId       Int
+  title             String
+  question_type     QuestionType
+  answer_source     AnswerSource @default(ai)
+  explanation       String?
+  difficulty        Difficulty?
+  source_citation   Json?
+  created_at        DateTime     @default(now())
 
   workbench       Workbench        @relation(fields: [workbenchId], references: [id])
   mcqChoices      MCQChoice[]

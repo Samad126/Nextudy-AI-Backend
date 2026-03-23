@@ -1,6 +1,10 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { DatabaseService } from '../../common/database/database.service.js';
-import { Difficulty, QuestionType } from '../../../generated/prisma/client.js';
+import {
+  Difficulty,
+  Prisma,
+  QuestionType,
+} from '../../../generated/prisma/client.js';
 import { QuestionRaw } from './questions.prompts.js';
 import { UpdateQuestionDto } from './dto/update-question.dto.js';
 
@@ -22,6 +26,9 @@ export class QuestionsRepository {
           answer_source: q.answer_source === 'file' ? 'file' : 'ai',
           difficulty: q.difficulty,
           explanation: q.explanation ?? null,
+          source_citation: q.source_citation
+            ? (q.source_citation as unknown as Prisma.InputJsonValue)
+            : Prisma.JsonNull,
         })),
       });
 
@@ -281,6 +288,9 @@ export class QuestionsRepository {
           answer_source: q.answer_source === 'file' ? 'file' : 'ai',
           difficulty,
           explanation: q.explanation ?? null,
+          source_citation: q.source_citation
+            ? (q.source_citation as unknown as Prisma.InputJsonValue)
+            : Prisma.JsonNull,
         },
       });
 

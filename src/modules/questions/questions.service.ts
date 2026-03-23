@@ -51,13 +51,14 @@ export class QuestionsService {
     validateQuestionOptions(createQuestionDto);
 
     // ── 1. Fetch Gemini-uploaded resources ────────────
-    const files = await this.workbenches.getGeminiFiles(userId, workbenchId);
+    const { files, resourceMeta } =
+      await this.workbenches.getGeminiFilesWithMeta(userId, workbenchId);
 
     // ── 2. Build prompt ──────────────────────────────────────────────────
 
     const prompt =
       generationMode === GenerationMode.USER_PROVIDED
-        ? buildManualPrompt(questions!, answerSource)
+        ? buildManualPrompt(questions!, answerSource, resourceMeta)
         : buildAutoPrompt({
             answerSchema: answerSchema!,
             difficulty: difficulty!,
@@ -66,6 +67,7 @@ export class QuestionsService {
             count,
             minWords,
             answerLength,
+            resourceMeta,
           });
 
     // ── 3. Call Gemini ───────────────────────────────────────────────────
@@ -105,10 +107,11 @@ export class QuestionsService {
     await this.workbenches.verifyMemberAccess(userId, question.workbenchId);
 
     // ── 2. Fetch Gemini-uploaded resources for the workbench ─────────────
-    const files = await this.workbenches.getGeminiFiles(
-      userId,
-      question.workbenchId,
-    );
+    const { files, resourceMeta } =
+      await this.workbenches.getGeminiFilesWithMeta(
+        userId,
+        question.workbenchId,
+      );
 
     // ── 3. Build prompt ──────────────────────────────────────────────────
     const resolvedDifficulty: Difficulty =
@@ -120,6 +123,7 @@ export class QuestionsService {
       questionType,
       difficulty: resolvedDifficulty,
       answerSource,
+      resourceMeta,
     });
 
     // ── 4. Call Gemini ───────────────────────────────────────────────────

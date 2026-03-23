@@ -84,6 +84,16 @@ export class WorkbenchesService {
     return this.gemini.toGeminiFiles(resources.map((wr) => wr.resource));
   }
 
+  async getGeminiFilesWithMeta(userId: number, workbenchId: number) {
+    const resources = await this.getResources(userId, workbenchId);
+    const files = this.gemini.toGeminiFiles(resources.map((wr) => wr.resource));
+    const resourceMeta = resources.map((wr) => ({
+      id: wr.resource.id,
+      fileName: wr.resource.name,
+    }));
+    return { files, resourceMeta };
+  }
+
   async setResources(
     userId: number,
     workbenchId: number,

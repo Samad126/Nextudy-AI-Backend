@@ -20,6 +20,13 @@ export interface GradingKeywordRaw {
   is_required: boolean;
 }
 
+export interface SourceCitationRaw {
+  resourceId: number;
+  fileName: string;
+  page: number | null;
+  snippet: string;
+}
+
 export interface QuestionRaw {
   title: string;
   question_type: 'mcq' | 'open_ended';
@@ -29,6 +36,7 @@ export interface QuestionRaw {
   choices?: MCQChoiceRaw[];
   sample_answer?: string;
   grading_keywords?: GradingKeywordRaw[];
+  source_citation?: SourceCitationRaw | null;
 }
 
 export interface GeneratedQuestionsResponse {
@@ -46,6 +54,7 @@ const JSON_SCHEMA = `{
       "difficulty": "EASY" | "MEDIUM" | "HARD",
       "answer_source": "file" | "ai",
       "explanation": "Brief explanation of why the answer is correct",
+      "source_citation": { "resourceId": 1, "fileName": "lecture.pdf", "page": 3, "snippet": "Exact verbatim text from the document" } | null,
       "choices": [
         { "choice_text": "Option A", "choice_order": 1, "is_correct": false },
         { "choice_text": "Option B", "choice_order": 2, "is_correct": true },
@@ -59,6 +68,7 @@ const JSON_SCHEMA = `{
       "difficulty": "EASY" | "MEDIUM" | "HARD",
       "answer_source": "file" | "ai",
       "explanation": "Key concepts the answer should cover",
+      "source_citation": { "resourceId": 1, "fileName": "lecture.pdf", "page": 3, "snippet": "Exact verbatim text from the document" } | null,
       "sample_answer": "A well-structured sample answer",
       "grading_keywords": [
         { "keyword": "key concept", "weight": 1.0, "is_required": true },
@@ -78,6 +88,7 @@ export function buildAutoPrompt(dto: {
   count?: number;
   minWords: number;
   answerLength?: AnswerLengthDto;
+  resourceMeta?: { id: number; fileName: string }[];
 }): string {
   const {
     answerSchema,
@@ -87,6 +98,7 @@ export function buildAutoPrompt(dto: {
     count,
     minWords,
     answerLength,
+    resourceMeta,
   } = dto;
 
   const questionTypeInstruction =
@@ -113,9 +125,19 @@ export function buildAutoPrompt(dto: {
         ? 'ANSWER SOURCE — MIXED: Use verbatim text from the files for question titles and correct answers where possible, but freely use your broader knowledge to write explanations, enrich sample answers, and craft MCQ distractors.'
         : 'ANSWER SOURCE — AI: Use the provided files as the primary source for topics and questions, but you may use your broader knowledge to write clear explanations, well-phrased distractors, and comprehensive sample answers beyond what is literally stated in the files.';
 
+  const resourceList =
+    resourceMeta && resourceMeta.length > 0
+      ? resourceMeta
+          .map((r) => `  - id: ${r.id}, fileName: "${r.fileName}"`)
+          .join('\n')
+      : '  (none)';
+
   return `You are an expert educational content creator. Analyze the provided study material(s) and generate exam/quiz questions based on their content.
 
 PRE-CHECK: Before generating, estimate the total word count of the provided material. If it contains fewer than ${minWords} words, return { "error": "INSUFFICIENT_CONTENT", "questions": [] } and stop.
+
+Available source documents:
+${resourceList}
 
 INSTRUCTIONS:
 1. ${countInstruction}
@@ -127,6 +149,7 @@ INSTRUCTIONS:
 7. For open_ended: ${answerLength ? `sample_answer should be approximately ${answerLength.amount} ${answerLength.unit} long` : 'sample_answer should be 2–5 sentences'}; grading_keywords should reflect the most important concepts needed in a correct answer.
 8. The "explanation" field is mandatory for all questions.
 9. Set answer_source to "file" if the correct answer / sample answer was taken verbatim or near-verbatim from the document, or "ai" if you used your own knowledge to write or significantly rephrase it.
+10. source_citation: If answer_source is "file", populate source_citation with { "resourceId": <id from the list above>, "fileName": "<fileName>", "page": <page number or null>, "snippet": "<exact verbatim passage from the document that the answer is based on>" }. If answer_source is "ai", set source_citation to null.
 
 OUTPUT FORMAT:
 Return ONLY raw JSON — no markdown, no code fences, no extra text before or after. The JSON must strictly follow this schema:
@@ -140,6 +163,7 @@ export function buildRegeneratePrompt(dto: {
   questionType: 'mcq' | 'open_ended';
   difficulty: string;
   answerSource: AnswerSource;
+  resourceMeta?: { id: number; fileName: string }[];
 }): string {
   const {
     regenerateFromScratch,
@@ -147,6 +171,7 @@ export function buildRegeneratePrompt(dto: {
     questionType,
     difficulty,
     answerSource,
+    resourceMeta,
   } = dto;
 
   const scopeInstruction = regenerateFromScratch
@@ -165,6 +190,15 @@ export function buildRegeneratePrompt(dto: {
         ? 'ANSWER SOURCE — MIXED: Use verbatim text from the files for correct answers where possible, but freely use your broader knowledge for explanations, sample answers, and distractors.'
         : 'ANSWER SOURCE — AI: Use the files as the topic source but write clear explanations, well-phrased distractors, and comprehensive sample answers using your broader knowledge.';
 
+  const resourceList =
+    resourceMeta && resourceMeta.length > 0
+      ? resourceMeta
+          .map((r) => `  - id: ${r.id}, fileName: "${r.fileName}"`)
+          .join('\n')
+      : '  (none)';
+
+  const sourceCitationField = `"source_citation": { "resourceId": 1, "fileName": "lecture.pdf", "page": 3, "snippet": "Exact verbatim text" } | null`;
+
   const singleQuestionSchema =
     questionType === 'mcq'
       ? `{
@@ -175,6 +209,7 @@ export function buildRegeneratePrompt(dto: {
       "difficulty": "${difficulty}",
       "answer_source": "file" | "ai",
       "explanation": "Brief explanation of why the answer is correct",
+      ${sourceCitationField},
       "choices": [
         { "choice_text": "Option A", "choice_order": 1, "is_correct": false },
         { "choice_text": "Option B", "choice_order": 2, "is_correct": true },
@@ -192,6 +227,7 @@ export function buildRegeneratePrompt(dto: {
       "difficulty": "${difficulty}",
       "answer_source": "file" | "ai",
       "explanation": "Key concepts the answer should cover",
+      ${sourceCitationField},
       "sample_answer": "A well-structured sample answer",
       "grading_keywords": [
         { "keyword": "key concept", "weight": 1.0, "is_required": true },
@@ -203,6 +239,9 @@ export function buildRegeneratePrompt(dto: {
 
   return `You are an expert educational content creator. Regenerate a single question based on the provided study material.
 
+Available source documents:
+${resourceList}
+
 INSTRUCTIONS:
 1. ${scopeInstruction}
 2. ${typeInstruction}
@@ -210,6 +249,7 @@ INSTRUCTIONS:
 4. ${answerSourceInstruction}
 5. The "explanation" field is mandatory.
 6. Set answer_source to "file" if the correct answer was taken verbatim from the document, or "ai" if you used your own knowledge.
+7. source_citation: If answer_source is "file", populate source_citation with { "resourceId": <id from list>, "fileName": "<fileName>", "page": <page or null>, "snippet": "<exact verbatim passage>" }. If answer_source is "ai", set source_citation to null.
 
 OUTPUT FORMAT:
 Return ONLY raw JSON — no markdown, no code fences, no extra text. The JSON must strictly follow this schema:
@@ -220,6 +260,7 @@ ${singleQuestionSchema}`;
 export function buildManualPrompt(
   rawQuestions: string,
   answerSource: AnswerSource,
+  resourceMeta?: { id: number; fileName: string }[],
 ): string {
   const answerSourceInstruction =
     answerSource === AnswerSource.FILE
@@ -228,7 +269,17 @@ export function buildManualPrompt(
         ? 'ANSWER SOURCE — MIXED: Use verbatim text from the files for question titles and correct answers where possible, but freely use your broader knowledge to write explanations, enrich sample answers, and craft MCQ distractors.'
         : 'ANSWER SOURCE — AI: You may use your broader knowledge to enrich explanations, sample answers, and distractors beyond what is literally in the files.';
 
+  const resourceList =
+    resourceMeta && resourceMeta.length > 0
+      ? resourceMeta
+          .map((r) => `  - id: ${r.id}, fileName: "${r.fileName}"`)
+          .join('\n')
+      : '  (none)';
+
   return `You are an expert educational content formatter. The user has written the following questions in free-form text. Your job is to parse them and structure each question into the exact JSON schema below.
+
+Available source documents:
+${resourceList}
 
 Rules:
 - If a question has multiple-choice options, set question_type to "mcq" and populate choices (exactly 4, one correct).
@@ -238,6 +289,7 @@ Rules:
 - Do not add or remove questions — structure exactly what the user provided.
 - ${answerSourceInstruction}
 - Set answer_source to "file" if the correct answer / sample answer was taken verbatim or near-verbatim from the document, or "ai" if you used your own knowledge to write or significantly rephrase it.
+- source_citation: If answer_source is "file", populate source_citation with { "resourceId": <id from list>, "fileName": "<fileName>", "page": <page or null>, "snippet": "<exact verbatim passage>" }. If answer_source is "ai", set source_citation to null.
 
 OUTPUT FORMAT:
 Return ONLY raw JSON — no markdown, no code fences, no extra text. Follow this schema exactly:
