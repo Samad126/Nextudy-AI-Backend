@@ -139,6 +139,7 @@ export class ChatService {
     content: string,
     workbenchId: number,
     history: { role: 'user' | 'model'; content: string }[],
+    onUserMessage: (msg: unknown) => void,
     onChunk: (chunk: string) => void,
   ) {
     const workbenchResources =
@@ -155,6 +156,8 @@ export class ChatService {
       role: MessageRole.user,
       content,
     });
+
+    onUserMessage(userMsg);
 
     let fullText = '';
     let answerStart = -1;
@@ -214,6 +217,7 @@ export class ChatService {
     userId: number,
     chatId: number,
     dto: SendMessageDto,
+    onUserMessage: (msg: unknown) => void,
     onChunk: (chunk: string) => void,
   ) {
     const chat = await this.repo.findOneChatWithWorkbench(chatId, userId);
@@ -232,6 +236,7 @@ export class ChatService {
       dto.content,
       chat.workbench.id,
       history,
+      onUserMessage,
       onChunk,
     );
 
@@ -243,6 +248,7 @@ export class ChatService {
     chatId: number,
     messageId: number,
     dto: EditMessageDto,
+    onUserMessage: (msg: unknown) => void,
     onChunk: (chunk: string) => void,
   ) {
     const chat = await this.repo.findOneChatWithWorkbench(chatId, userId);
@@ -269,6 +275,7 @@ export class ChatService {
       dto.content,
       chat.workbench.id,
       historyBefore,
+      onUserMessage,
       onChunk,
     );
 

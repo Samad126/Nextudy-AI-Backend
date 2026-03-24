@@ -88,6 +88,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         user.sub,
         payload.chatId,
         { content: payload.content },
+        (userMsg) => client.emit('chat:userMessage', userMsg),
         (chunk) => client.emit('chat:chunk', { chatId: payload.chatId, chunk }),
       );
 
@@ -113,6 +114,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         payload.chatId,
         payload.messageId,
         { content: payload.content },
+        (userMsg) => client.emit('chat:userMessage', userMsg),
         (chunk) => client.emit('chat:chunk', { chatId: payload.chatId, chunk }),
       );
 
