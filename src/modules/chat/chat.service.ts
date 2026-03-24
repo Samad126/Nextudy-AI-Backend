@@ -134,6 +134,147 @@ export class ChatService {
     return [userMsg, assistantMsg];
   }
 
+  private async _streamMessage(
+    chatId: number,
+    content: string,
+    workbenchId: number,
+    history: { role: 'user' | 'model'; content: string }[],
+    onChunk: (chunk: string) => void,
+  ) {
+    const workbenchResources =
+      await this.workbenchesRepo.findResources(workbenchId);
+    const resources = workbenchResources.map((wr) => wr.resource);
+    const files = this.gemini.toGeminiFiles(resources);
+
+    const resourceMeta = resources.map((r) => ({ id: r.id, fileName: r.name }));
+    const jsonInstruction = buildChatJsonInstruction(resourceMeta);
+    const contentWithInstruction = `${content}\n\n${jsonInstruction}`;
+
+    const userMsg = await this.repo.createMessage({
+      chat_history_id: chatId,
+      role: MessageRole.user,
+      content,
+    });
+
+    let fullText = '';
+    let answerStart = -1;
+    let emittedRawLength = 0;
+    const ANSWER_MARKER = '"answer": "';
+
+    for await (const chunk of this.gemini.streamChatResponse(
+      contentWithInstruction,
+      history,
+      files,
+      SYSTEM_PROMPT,
+    )) {
+      fullText += chunk;
+
+      if (answerStart === -1) {
+        const idx = fullText.indexOf(ANSWER_MARKER);
+        if (idx !== -1) answerStart = idx + ANSWER_MARKER.length;
+      }
+
+      if (answerStart !== -1) {
+        let end = fullText.length;
+        for (let i = answerStart + emittedRawLength; i < fullText.length; i++) {
+          if (fullText[i] === '"' && fullText[i - 1] !== '\\') {
+            end = i;
+            break;
+          }
+        }
+        const rawChunk = fullText.slice(answerStart + emittedRawLength, end);
+        if (rawChunk) {
+          emittedRawLength += rawChunk.length;
+          onChunk(
+            rawChunk
+              .replace(/\\n/g, '\n')
+              .replace(/\\"/g, '"')
+              .replace(/\\\\/g, '\\')
+              .replace(/\\t/g, '\t'),
+          );
+        }
+      }
+    }
+
+    const parsed = this.gemini.parseJsonResponse<ChatAIResponse>(fullText);
+
+    const assistantMsg = await this.repo.createMessage({
+      chat_history_id: chatId,
+      role: MessageRole.assistant,
+      content: parsed.answer,
+      model_id: MODEL_ID,
+      sources: parsed.sources as object[],
+    });
+
+    await this.repo.touchChat(chatId);
+    return [userMsg, assistantMsg] as const;
+  }
+
+  async streamSendMessage(
+    userId: number,
+    chatId: number,
+    dto: SendMessageDto,
+    onChunk: (chunk: string) => void,
+  ) {
+    const chat = await this.repo.findOneChatWithWorkbench(chatId, userId);
+    if (!chat) throw new NotFoundException('Chat not found');
+
+    const history = chat.messages
+      .filter((m) => m.role !== MessageRole.system)
+      .map((m) => ({
+        role:
+          m.role === MessageRole.user ? ('user' as const) : ('model' as const),
+        content: m.content,
+      }));
+
+    const [, assistantMsg] = await this._streamMessage(
+      chatId,
+      dto.content,
+      chat.workbench.id,
+      history,
+      onChunk,
+    );
+
+    return assistantMsg;
+  }
+
+  async streamEditMessage(
+    userId: number,
+    chatId: number,
+    messageId: number,
+    dto: EditMessageDto,
+    onChunk: (chunk: string) => void,
+  ) {
+    const chat = await this.repo.findOneChatWithWorkbench(chatId, userId);
+    if (!chat) throw new NotFoundException('Chat not found');
+
+    const target = chat.messages.find((m) => m.id === messageId);
+    if (!target) throw new NotFoundException('Message not found');
+    if (target.role !== MessageRole.user) {
+      throw new BadRequestException('Only user messages can be edited');
+    }
+
+    const historyBefore = chat.messages
+      .filter((m) => m.id < messageId && m.role !== MessageRole.system)
+      .map((m) => ({
+        role:
+          m.role === MessageRole.user ? ('user' as const) : ('model' as const),
+        content: m.content,
+      }));
+
+    await this.repo.deleteMessagesFrom(chatId, messageId);
+
+    const [, assistantMsg] = await this._streamMessage(
+      chatId,
+      dto.content,
+      chat.workbench.id,
+      historyBefore,
+      onChunk,
+    );
+
+    return assistantMsg;
+  }
+
   async sendMessage(userId: number, chatId: number, dto: SendMessageDto) {
     const chat = await this.repo.findOneChatWithWorkbench(chatId, userId);
     if (!chat) throw new NotFoundException('Chat not found');

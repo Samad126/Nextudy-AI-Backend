@@ -86,6 +86,41 @@ export class GeminiService implements IGeminiService, IGeminiFileService {
     return resources.map((r) => ({ uri: r.store_id, mimeType: r.mime_type }));
   }
 
+  async *streamChatResponse(
+    userMessage: string,
+    history: { role: 'user' | 'model'; content: string }[],
+    files: { uri: string; mimeType: string }[],
+    systemPrompt?: string,
+  ): AsyncGenerator<string> {
+    const modelWithSystem = systemPrompt
+      ? this.genAI.getGenerativeModel({
+          model: 'gemini-3.1-flash-lite-preview',
+          systemInstruction: systemPrompt,
+        })
+      : this.model;
+
+    const geminiHistory = history.map((msg) => ({
+      role: msg.role,
+      parts: [{ text: msg.content }],
+    }));
+
+    const chat = modelWithSystem.startChat({ history: geminiHistory });
+
+    const userParts = [
+      ...files.map((f) => ({
+        fileData: { fileUri: f.uri, mimeType: f.mimeType },
+      })),
+      { text: userMessage },
+    ];
+
+    const result = await chat.sendMessageStream(userParts);
+
+    for await (const chunk of result.stream) {
+      const text = chunk.text();
+      if (text) yield text;
+    }
+  }
+
   async generateChatResponse(
     userMessage: string,
     history: { role: 'user' | 'model'; content: string }[],

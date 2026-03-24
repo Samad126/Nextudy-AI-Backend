@@ -16,4 +16,10 @@ export interface IGeminiService {
     jsonInstruction: string,
     systemPrompt?: string,
   ): Promise<string>;
+  streamChatResponse(
+    userMessage: string,
+    history: { role: 'user' | 'model'; content: string }[],
+    files: { uri: string; mimeType: string }[],
+    systemPrompt?: string,
+  ): AsyncGenerator<string>;
 }

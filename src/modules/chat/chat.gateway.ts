@@ -84,20 +84,15 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     const user = client.data.user;
 
     try {
-      client.emit('chat:typing', { chatId: payload.chatId, isTyping: true });
-
-      const assistantMsg = await this.chatService.sendMessage(
+      const assistantMsg = await this.chatService.streamSendMessage(
         user.sub,
         payload.chatId,
-        {
-          content: payload.content,
-        },
+        { content: payload.content },
+        (chunk) => client.emit('chat:chunk', { chatId: payload.chatId, chunk }),
       );
 
-      client.emit('chat:typing', { chatId: payload.chatId, isTyping: false });
       client.emit('chat:message', assistantMsg);
     } catch (error) {
-      client.emit('chat:typing', { chatId: payload.chatId, isTyping: false });
       client.emit('chat:error', {
         message: (error as Error).message || 'Failed to send message',
       });
@@ -113,19 +108,16 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     const user = client.data.user;
 
     try {
-      client.emit('chat:typing', { chatId: payload.chatId, isTyping: true });
-
-      const assistantMsg = await this.chatService.editMessage(
+      const assistantMsg = await this.chatService.streamEditMessage(
         user.sub,
         payload.chatId,
         payload.messageId,
         { content: payload.content },
+        (chunk) => client.emit('chat:chunk', { chatId: payload.chatId, chunk }),
       );
 
-      client.emit('chat:typing', { chatId: payload.chatId, isTyping: false });
       client.emit('chat:message', assistantMsg);
     } catch (error) {
-      client.emit('chat:typing', { chatId: payload.chatId, isTyping: false });
       client.emit('chat:error', {
         message: (error as Error).message || 'Failed to edit message',
       });
