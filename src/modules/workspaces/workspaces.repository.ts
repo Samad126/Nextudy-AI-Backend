@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { WorkspaceMemberRole } from '../../../generated/prisma/client.js';
 import { DatabaseService } from '../../common/database/database.service.js';
 import { CreateWorkspaceDto } from './dto/create-workspace.dto.js';
 import { UpdateWorkspaceDto } from './dto/update-workspace.dto.js';
@@ -13,7 +14,13 @@ export class WorkspacesRepository {
 
   createWorkspace(userId: number, dto: CreateWorkspaceDto) {
     return this.db.workspace.create({
-      data: { ...dto, ownerId: userId },
+      data: {
+        ...dto,
+        ownerId: userId,
+        members: {
+          create: { userId, role: WorkspaceMemberRole.owner },
+        },
+      },
     });
   }
 

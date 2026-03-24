@@ -133,7 +133,7 @@ model WorkspaceInvite {
   responded_at    DateTime?
 
   notification Notification @relation(fields: [notification_id], references: [id])
-  workspace    Workspace    @relation(fields: [workspaceId], references: [id])
+  workspace    Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   inviter      User         @relation("InviterRelation", fields: [inviter_id], references: [id])
   invitee      User?        @relation("InviteeRelation", fields: [invitee_id], references: [id])
 
@@ -150,7 +150,7 @@ model WorkspaceMember {
   role        WorkspaceMemberRole @default(member)
   joined_at   DateTime            @default(now())
 
-  workspace Workspace @relation(fields: [workspaceId], references: [id])
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   user      User      @relation(fields: [userId], references: [id])
 
   @@unique([workspaceId, userId])
@@ -166,7 +166,7 @@ model Workbench {
   created_at  DateTime @default(now())
   updated_at  DateTime @updatedAt
 
-  workspace     Workspace           @relation(fields: [workspaceId], references: [id])
+  workspace     Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   resources     WorkbenchResource[]
   questions     Question[]
   chatHistories ChatHistory[]
@@ -192,7 +192,7 @@ model ResourceGroups {
   workspaceId Int
   name        String     @unique
   resources   Resource[] @relation("ResourceToGroup")
-  workspace   Workspace  @relation(fields: [workspaceId], references: [id])
+  workspace   Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 }
 
 model Resource {
@@ -206,7 +206,7 @@ model Resource {
   mime_type   String
   created_at  DateTime     @default(now())
 
-  workspace      Workspace           @relation(fields: [workspaceId], references: [id])
+  workspace      Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   resourceGroups ResourceGroups[]    @relation("ResourceToGroup")
   workbenches    WorkbenchResource[]
   flashcardSets  FlashcardResource[]
@@ -224,7 +224,7 @@ model FlashcardSet {
   created_at  DateTime @default(now())
   updated_at  DateTime @updatedAt
 
-  workspace  Workspace           @relation(fields: [workspaceId], references: [id])
+  workspace  Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   cards      Flashcard[]
   resources  FlashcardResource[]
 
@@ -271,7 +271,7 @@ model Question {
   source_citation   Json?
   created_at        DateTime     @default(now())
 
-  workbench       Workbench        @relation(fields: [workbenchId], references: [id])
+  workbench       Workbench        @relation(fields: [workbenchId], references: [id], onDelete: Cascade)
   mcqChoices      MCQChoice[]
   openEndedAnswer OpenEndedAnswer?
   quizQuestions   QuizQuestion[]
@@ -324,7 +324,7 @@ model Quiz {
   created_at  DateTime @default(now())
   updated_at  DateTime @updatedAt
 
-  workspace Workspace      @relation(fields: [workspaceId], references: [id])
+  workspace Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   questions QuizQuestion[]
   attempts  QuizAttempt[]
 
@@ -337,7 +337,7 @@ model QuizQuestion {
   questionId Int
 
   quiz            Quiz             @relation(fields: [quizId], references: [id], onDelete: Cascade)
-  question        Question         @relation(fields: [questionId], references: [id], onDelete: Restrict)
+  question        Question         @relation(fields: [questionId], references: [id], onDelete: Cascade)
   userQuizAnswers UserQuizAnswer[]
 
   @@unique([quizId, questionId])
@@ -386,7 +386,7 @@ model ChatHistory {
   created_at    DateTime @default(now())
   updated_at    DateTime @updatedAt
 
-  workbench Workbench @relation(fields: [workbenchId], references: [id])
+  workbench Workbench @relation(fields: [workbenchId], references: [id], onDelete: Cascade)
   messages  Message[]
 
   @@index([workbenchId])
@@ -404,7 +404,7 @@ model Message {
   sources         Json?
   created_at      DateTime    @default(now())
 
-  chatHistory ChatHistory @relation(fields: [chat_history_id], references: [id])
+  chatHistory ChatHistory @relation(fields: [chat_history_id], references: [id], onDelete: Cascade)
 
   @@index([chat_history_id, created_at])
 }
