@@ -2,11 +2,28 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module.js';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { IoAdapter } from '@nestjs/platform-socket.io';
+import type { Server, ServerOptions } from 'socket.io';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
 
+class CorsIoAdapter extends IoAdapter {
+  createIOServer(port: number, options?: ServerOptions): Server {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+    return super.createIOServer(port, {
+      ...options,
+      cors: {
+        origin: process.env.ALLOWED_ORIGINS?.split(',') ?? [],
+        credentials: true,
+      },
+    });
+  }
+}
+
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+
+  app.useWebSocketAdapter(new CorsIoAdapter(app));
 
   app.use(helmet());
 

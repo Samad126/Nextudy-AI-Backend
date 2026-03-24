@@ -149,7 +149,7 @@ export class ChatService {
     const [, assistantMsg] = await this._sendMessage(
       chatId,
       dto.content,
-      chat.workbench.workspaceId,
+      chat.workbench.id,
       history,
     );
 
@@ -184,7 +184,7 @@ export class ChatService {
     const [, assistantMsg] = await this._sendMessage(
       chatId,
       dto.content,
-      chat.workbench.workspaceId,
+      chat.workbench.id,
       historyBefore,
     );
 
