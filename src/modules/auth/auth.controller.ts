@@ -10,7 +10,6 @@ import {
 } from '@nestjs/common';
 import { ApiOperation, ApiBearerAuth, ApiBody } from '@nestjs/swagger';
 import type { Response } from 'express';
-import { ConfigService } from '@nestjs/config';
 import { AuthService } from './auth.service.js';
 import { RegisterDto } from './dto/register.dto.js';
 import { LoginDto } from './dto/login.dto.js';
@@ -30,10 +29,7 @@ import type { Request } from 'express';
 
 @Controller('auth')
 export class AuthController {
-  constructor(
-    private readonly authService: AuthService,
-    private readonly configService: ConfigService,
-  ) {}
+  constructor(private readonly authService: AuthService) {}
 
   @Public()
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
@@ -75,7 +71,7 @@ export class AuthController {
   ) {
     const accessToken = extractJwtFromCookieOrHeader(req) ?? '';
     await this.authService.logout(userId, accessToken);
-    const isProd = this.configService.get('NODE_ENV') === 'production';
+    const isProd = process.env.NODE_ENV === 'production';
     res.clearCookie('refreshToken', {
       httpOnly: true,
       secure: isProd,
@@ -143,7 +139,7 @@ export class AuthController {
   }
 
   private setRefreshTokenCookie(res: Response, refreshToken: string) {
-    const isProd = this.configService.get('NODE_ENV') === 'production';
+    const isProd = process.env.NODE_ENV === 'production';
     res.cookie('refreshToken', refreshToken, {
       httpOnly: true,
       secure: isProd,
