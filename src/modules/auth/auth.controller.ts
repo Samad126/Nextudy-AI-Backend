@@ -10,6 +10,7 @@ import {
 } from '@nestjs/common';
 import { ApiOperation, ApiBearerAuth, ApiBody } from '@nestjs/swagger';
 import type { Response } from 'express';
+import { ConfigService } from '@nestjs/config';
 import { AuthService } from './auth.service.js';
 import { RegisterDto } from './dto/register.dto.js';
 import { LoginDto } from './dto/login.dto.js';
@@ -29,7 +30,10 @@ import type { Request } from 'express';
 
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly configService: ConfigService,
+  ) {}
 
   @Public()
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
@@ -71,11 +75,12 @@ export class AuthController {
   ) {
     const accessToken = extractJwtFromCookieOrHeader(req) ?? '';
     await this.authService.logout(userId, accessToken);
+    const isProd = this.configService.get('NODE_ENV') === 'production';
     res.clearCookie('refreshToken', {
       httpOnly: true,
-      secure: true,
-      sameSite: 'none',
-      domain: '.alakbaroff.com',
+      secure: isProd,
+      sameSite: isProd ? 'none' : 'lax',
+      ...(isProd && { domain: '.alakbaroff.com' }),
     });
   }
 
@@ -138,11 +143,12 @@ export class AuthController {
   }
 
   private setRefreshTokenCookie(res: Response, refreshToken: string) {
+    const isProd = this.configService.get('NODE_ENV') === 'production';
     res.cookie('refreshToken', refreshToken, {
       httpOnly: true,
-      secure: true,
-      sameSite: 'none',
-      domain: '.alakbaroff.com',
+      secure: isProd,
+      sameSite: isProd ? 'none' : 'lax',
+      ...(isProd && { domain: '.alakbaroff.com' }),
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
     });
   }
