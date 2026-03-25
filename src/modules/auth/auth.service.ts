@@ -88,9 +88,12 @@ export class AuthService {
   }
 
   async refreshTokens(userId: number, email: string, refreshToken: string) {
+    console.log('USER ID ' + userId);
     const user = await this.db.user.findUnique({ where: { id: userId } });
     if (!user || !user.hashedRefreshToken)
       throw new ForbiddenException('Access denied');
+
+    console.log('USER: ', user);
 
     const isValid = await argon2.verify(user.hashedRefreshToken, refreshToken);
     if (!isValid) throw new ForbiddenException('Access denied');

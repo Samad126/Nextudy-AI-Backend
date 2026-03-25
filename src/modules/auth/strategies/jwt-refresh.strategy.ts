@@ -27,9 +27,15 @@ export class JwtRefreshStrategy extends PassportStrategy(
     payload: JwtPayload,
   ): JwtPayload & { refreshToken: string } {
     const fromCookie = req.cookies?.['refreshToken'] as string | undefined;
-    const fromBody = (req.body as { refreshToken?: string }).refreshToken;
+    const fromBody = (req.body as { refreshToken?: string } | undefined)
+      ?.refreshToken;
     const refreshToken: string = (fromCookie ?? fromBody) as string;
-    console.log('[JwtRefresh] cookie present:', !!fromCookie, '| body present:', !!fromBody);
+    console.log(
+      '[JwtRefresh] cookie present:',
+      !!fromCookie,
+      '| body present:',
+      !!fromBody,
+    );
     return { ...payload, refreshToken };
   }
 }
