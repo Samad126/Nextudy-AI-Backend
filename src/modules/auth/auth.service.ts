@@ -1,28 +1,32 @@
 import {
+  BadRequestException,
   ConflictException,
   ForbiddenException,
   Injectable,
   Logger,
   UnauthorizedException,
-  BadRequestException,
 } from '@nestjs/common';
 import * as argon2 from 'argon2';
-import { randomUUID } from 'crypto';
+import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'crypto';
 import { DatabaseService } from '../../common/database/database.service.js';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { RegisterDto } from './dto/register.dto.js';
 import { RedisService } from '../../common/redis/redis.service.js';
+import { MailService } from '../../common/mail/mail.service.js';
 
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
+
+  private static readonly RESET_TOKEN_TTL = 900; // 15 minutes
 
   constructor(
     private readonly db: DatabaseService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
     private readonly redis: RedisService,
+    private readonly mail: MailService,
   ) {}
 
   async register(dto: RegisterDto) {
@@ -94,6 +98,64 @@ export class AuthService {
     const tokens = await this.generateTokens(userId, email);
     await this.updateRefreshToken(userId, tokens.refreshToken);
     return tokens;
+  }
+
+  async forgotPassword(email: string): Promise<void> {
+    const user = await this.db.user.findUnique({ where: { email } });
+
+    // Always respond the same way to prevent email enumeration
+    if (!user || !user.hashedPassword) return;
+
+    const rawToken = randomBytes(32).toString('hex');
+    const hashedToken = createHash('sha256').update(rawToken).digest('hex');
+
+    await this.redis.setex(
+      `pr:${user.id}`,
+      AuthService.RESET_TOKEN_TTL,
+      hashedToken,
+    );
+
+    const frontendUrl =
+      this.configService.get<string>('FRONTEND_URL') ?? 'http://localhost:3000';
+    const resetUrl = `${frontendUrl}/reset-password?token=${rawToken}&uid=${user.id}`;
+
+    await this.mail.sendPasswordResetEmail(user.email, resetUrl);
+    this.logger.log(`Password reset requested for user ${user.id}`);
+  }
+
+  async resetPassword(
+    userId: number,
+    rawToken: string,
+    newPassword: string,
+  ): Promise<void> {
+    const stored = await this.redis.get(`pr:${userId}`);
+    if (!stored)
+      throw new BadRequestException('Invalid or expired reset token');
+
+    const hashedToken = createHash('sha256').update(rawToken).digest('hex');
+    const storedBuf = Buffer.from(stored, 'hex');
+    const incomingBuf = Buffer.from(hashedToken, 'hex');
+
+    const isValid =
+      storedBuf.length === incomingBuf.length &&
+      timingSafeEqual(storedBuf, incomingBuf);
+
+    if (!isValid)
+      throw new BadRequestException('Invalid or expired reset token');
+
+    // Consume the token immediately (single-use)
+    await this.redis.del(`pr:${userId}`);
+
+    const hashedPassword = await argon2.hash(newPassword);
+    await this.db.user.update({
+      where: { id: userId },
+      data: {
+        hashedPassword,
+        hashedRefreshToken: null, // invalidate all active sessions
+      },
+    });
+
+    this.logger.log(`Password reset completed for user ${userId}`);
   }
 
   async googleLogin(accessToken: string) {

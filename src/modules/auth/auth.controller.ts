@@ -15,6 +15,8 @@ import { RegisterDto } from './dto/register.dto.js';
 import { LoginDto } from './dto/login.dto.js';
 import { RefreshDto } from './dto/refresh.dto.js';
 import { GoogleLoginDto } from './dto/google-login.dto.js';
+import { ForgotPasswordDto } from './dto/forgot-password.dto.js';
+import { ResetPasswordDto } from './dto/reset-password.dto.js';
 import { LocalAuthGuard } from '../../common/guards/local-auth.guard.js';
 import { JwtRefreshGuard } from '../../common/guards/jwt-refresh.guard.js';
 import { GetUser } from '../../common/decorators/get-user.decorator.js';
@@ -104,6 +106,30 @@ export class AuthController {
     );
     this.setRefreshTokenCookie(res, tokens.refreshToken);
     return tokens;
+  }
+
+  @Public()
+  @Throttle({ default: { limit: 3, ttl: 900_000 } })
+  @HttpCode(HttpStatus.OK)
+  @Post('forgot-password')
+  @ApiOperation({ summary: 'Request a password reset email' })
+  async forgotPassword(@Body() dto: ForgotPasswordDto) {
+    await this.authService.forgotPassword(dto.email);
+    return { message: 'If that email exists, a reset link has been sent.' };
+  }
+
+  @Public()
+  @Throttle({ default: { limit: 5, ttl: 900_000 } })
+  @HttpCode(HttpStatus.OK)
+  @Post('reset-password')
+  @ApiOperation({ summary: 'Reset password using token from email' })
+  async resetPassword(@Body() dto: ResetPasswordDto) {
+    await this.authService.resetPassword(
+      dto.userId,
+      dto.token,
+      dto.newPassword,
+    );
+    return { message: 'Password updated successfully.' };
   }
 
   private setRefreshTokenCookie(res: Response, refreshToken: string) {

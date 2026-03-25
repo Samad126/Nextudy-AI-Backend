@@ -7,9 +7,10 @@ import { DatabaseModule } from '../../common/database/database.module.js';
 import { LocalStrategy } from './strategies/local.strategy.js';
 import { JwtAccessStrategy } from './strategies/jwt-access.strategy.js';
 import { JwtRefreshStrategy } from './strategies/jwt-refresh.strategy.js';
+import { MailModule } from '../../common/mail/mail.module.js';
 
 @Module({
-  imports: [DatabaseModule, PassportModule, JwtModule.register({})],
+  imports: [DatabaseModule, PassportModule, JwtModule.register({}), MailModule],
   controllers: [AuthController],
   providers: [
     AuthService,
