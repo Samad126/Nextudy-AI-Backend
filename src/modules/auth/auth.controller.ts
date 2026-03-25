@@ -140,6 +140,16 @@ export class AuthController {
 
   private setRefreshTokenCookie(res: Response, refreshToken: string) {
     const isProd = process.env.NODE_ENV === 'production';
+
+    // Clear any stale domain-less cookie that shadows the domain-scoped one
+    if (isProd) {
+      res.clearCookie('refreshToken', {
+        httpOnly: true,
+        secure: true,
+        sameSite: 'lax',
+      });
+    }
+
     res.cookie('refreshToken', refreshToken, {
       httpOnly: true,
       secure: isProd,
