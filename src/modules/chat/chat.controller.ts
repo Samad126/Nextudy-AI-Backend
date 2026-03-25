@@ -15,6 +15,7 @@ import { SendMessageDto } from './dto/send-message.dto.js';
 import { EditMessageDto } from './dto/edit-message.dto.js';
 import { ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { GetUser } from '../../common/decorators/get-user.decorator.js';
+import { Throttle } from '@nestjs/throttler';
 
 @ApiBearerAuth('accessToken')
 @Controller('chats')
@@ -54,6 +55,7 @@ export class ChatController {
     return this.chatService.remove(userId, id);
   }
 
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
   @Post(':id/messages')
   @ApiOperation({ summary: 'Send a message and get AI response' })
   sendMessage(
@@ -64,6 +66,7 @@ export class ChatController {
     return this.chatService.sendMessage(userId, id, dto);
   }
 
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
   @Patch(':id/messages/:messageId')
   @ApiOperation({ summary: 'Edit a user message and regenerate AI response' })
   editMessage(

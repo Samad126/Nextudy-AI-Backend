@@ -15,12 +15,14 @@ import { UpdateQuestionDto } from './dto/update-question.dto.js';
 import { RegenerateQuestionDto } from './dto/regenerate-question.dto.js';
 import { ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { GetUser } from '../../common/decorators/get-user.decorator.js';
+import { Throttle } from '@nestjs/throttler';
 
 @Controller('questions')
 @ApiBearerAuth('accessToken')
 export class QuestionsController {
   constructor(private readonly questionsService: QuestionsService) {}
 
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
   @Post()
   @ApiOperation({ summary: 'Create new questions' })
   create(
@@ -54,6 +56,7 @@ export class QuestionsController {
     return this.questionsService.update(userId, id, updateQuestionDto);
   }
 
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
   @Post(':id/regenerate')
   @ApiOperation({ summary: 'Regenerate a single question' })
   regenerate(

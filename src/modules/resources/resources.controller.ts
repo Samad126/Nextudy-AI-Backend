@@ -25,12 +25,14 @@ import { ResourcesService } from './resources.service.js';
 import { multerConfig } from '../../common/config/multer.config.js';
 import { GetUser } from '../../common/decorators/get-user.decorator.js';
 import { FileUploadDto } from './dto/file-upload.dto.js';
+import { Throttle } from '@nestjs/throttler';
 
 @Controller('resources')
 @ApiBearerAuth('accessToken')
 export class ResourcesController {
   constructor(private readonly resourcesService: ResourcesService) {}
 
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
   @Post()
   @ApiOperation({ summary: 'Upload a resource to a workspace' })
   @ApiConsumes('multipart/form-data')

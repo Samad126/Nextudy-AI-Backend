@@ -15,12 +15,14 @@ import { UpdateFlashcardSetDto } from './dto/update-flashcard-set.dto.js';
 import { UpdateFlashcardCardDto } from './dto/update-flashcard-card.dto.js';
 import { ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { GetUser } from '../../common/decorators/get-user.decorator.js';
+import { Throttle } from '@nestjs/throttler';
 
 @ApiBearerAuth('accessToken')
 @Controller('flashcard-sets')
 export class FlashcardsController {
   constructor(private readonly flashcardsService: FlashcardsService) {}
 
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
   @Post()
   @ApiOperation({ summary: 'Create a flashcard set with AI-generated cards' })
   createSet(

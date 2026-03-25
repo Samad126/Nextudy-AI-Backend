@@ -19,6 +19,7 @@ import { LocalAuthGuard } from '../../common/guards/local-auth.guard.js';
 import { JwtRefreshGuard } from '../../common/guards/jwt-refresh.guard.js';
 import { GetUser } from '../../common/decorators/get-user.decorator.js';
 import { Public } from '../../common/decorators/public.decorator.js';
+import { Throttle } from '@nestjs/throttler';
 import { JwtPayload } from './types/jwt-payload.type.js';
 import { extractJwtFromCookieOrHeader } from './util/jwtExtractor.js';
 import type { User } from '../../../generated/prisma/client.js';
@@ -29,6 +30,7 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Public()
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @Post('register')
   @ApiOperation({ summary: 'Register with email & password' })
   async register(
@@ -41,6 +43,7 @@ export class AuthController {
   }
 
   @Public()
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @UseGuards(LocalAuthGuard)
   @HttpCode(HttpStatus.OK)
   @Post('login')
@@ -70,6 +73,7 @@ export class AuthController {
   }
 
   @Public()
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @HttpCode(HttpStatus.OK)
   @Post('google')
   @ApiOperation({ summary: 'Login with Google ID token' })
@@ -83,6 +87,7 @@ export class AuthController {
   }
 
   @Public()
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
   @UseGuards(JwtRefreshGuard)
   @HttpCode(HttpStatus.OK)
   @Post('refresh')
