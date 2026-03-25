@@ -75,7 +75,7 @@ export class AuthController {
     res.clearCookie('refreshToken', {
       httpOnly: true,
       secure: isProd,
-      sameSite: isProd ? 'none' : 'lax',
+      sameSite: 'lax',
       ...(isProd && { domain: '.alakbaroff.com' }),
     });
   }
@@ -143,7 +143,7 @@ export class AuthController {
     res.cookie('refreshToken', refreshToken, {
       httpOnly: true,
       secure: isProd,
-      sameSite: isProd ? 'none' : 'lax',
+      sameSite: 'lax',
       ...(isProd && { domain: '.alakbaroff.com' }),
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
     });
