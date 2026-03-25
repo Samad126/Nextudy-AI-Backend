@@ -22,7 +22,8 @@ COPY package*.json ./
 RUN npm ci --omit=dev
 
 COPY --from=builder /usr/src/app/dist ./dist
-COPY --from=builder /usr/src/app/generated ./generated
+# Overwrite compiled generated client with raw generated files so .ts internals are present at runtime
+COPY --from=builder /usr/src/app/generated ./dist/generated
 COPY --from=builder /usr/src/app/prisma ./prisma
 COPY --from=builder /usr/src/app/dist/prisma.config.js ./prisma.config.js
 
