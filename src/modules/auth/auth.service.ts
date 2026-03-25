@@ -95,6 +95,9 @@ export class AuthService {
 
     console.log('USER: ', user);
 
+    console.log('user token: ', user.hashedRefreshToken);
+    console.log('refresh token: ', refreshToken);
+
     const isValid = await argon2.verify(user.hashedRefreshToken, refreshToken);
     if (!isValid) throw new ForbiddenException('Access denied');
 
