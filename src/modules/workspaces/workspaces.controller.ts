@@ -59,6 +59,15 @@ export class WorkspacesController {
     return this.workspacesService.remove(userId, +id);
   }
 
+  @Get(':id/overview')
+  @ApiOperation({ summary: 'Get workspace dashboard overview' })
+  getOverview(
+    @Param('id', ParseIntPipe) id: number,
+    @GetUser('sub') userId: number,
+  ) {
+    return this.workspacesService.getOverview(userId, id);
+  }
+
   @Post(':id/leave')
   @ApiOperation({ summary: 'Leave a workspace' })
   leave(@Param('id', ParseIntPipe) id: number, @GetUser('sub') userId: number) {

@@ -65,4 +65,35 @@ export class WorkspacesRepository {
   findWorkspaceById(workspaceId: number) {
     return this.db.workspace.findUnique({ where: { id: workspaceId } });
   }
+
+  getOverview(workspaceId: number, userId: number) {
+    return this.db.workspace.findFirst({
+      where: { id: workspaceId, ...anyMemberFilter(userId) },
+      select: {
+        _count: {
+          select: {
+            resources: true,
+            workbenches: true,
+            quizzes: true,
+            flashcardSets: true,
+          },
+        },
+        workbenches: {
+          take: 5,
+          orderBy: { created_at: 'desc' },
+          select: { id: true, name: true, created_at: true },
+        },
+        quizzes: {
+          take: 5,
+          orderBy: { created_at: 'desc' },
+          select: { id: true, title: true, created_at: true },
+        },
+        flashcardSets: {
+          take: 5,
+          orderBy: { created_at: 'desc' },
+          select: { id: true, title: true, created_at: true },
+        },
+      },
+    });
+  }
 }
