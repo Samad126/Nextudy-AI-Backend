@@ -71,7 +71,11 @@ export class AuthController {
   ) {
     const accessToken = extractJwtFromCookieOrHeader(req) ?? '';
     await this.authService.logout(userId, accessToken);
-    res.clearCookie('refreshToken');
+    res.clearCookie('refreshToken', {
+      httpOnly: true,
+      secure: true,
+      sameSite: 'none',
+    });
   }
 
   @Public()
@@ -135,8 +139,8 @@ export class AuthController {
   private setRefreshTokenCookie(res: Response, refreshToken: string) {
     res.cookie('refreshToken', refreshToken, {
       httpOnly: true,
-      secure: process.env['NODE_ENV'] === 'production',
-      sameSite: 'lax',
+      secure: true,
+      sameSite: 'none',
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
     });
   }
