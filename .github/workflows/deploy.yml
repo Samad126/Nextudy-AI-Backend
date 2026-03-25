@@ -15,6 +15,7 @@ jobs:
         run: |
           sshpass -e ssh -p 44544 -o StrictHostKeyChecking=no ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << 'EOF'
             set -e
+            git config --global --add safe.directory /pool/www/nextudy.alakbaroff.com/backend
             git -C /pool/www/nextudy.alakbaroff.com/backend pull origin master
             docker compose -f /pool/www/nextudy.alakbaroff.com/docker-compose.yml up -d --no-deps --build nextudy-api
           EOF
