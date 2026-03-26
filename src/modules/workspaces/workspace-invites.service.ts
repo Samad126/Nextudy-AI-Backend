@@ -49,6 +49,8 @@ export class WorkspaceInvitesService {
           'User is already a member of this workspace',
         );
       }
+    } else {
+      throw new BadRequestException('User not found');
     }
 
     const existingInvite = await this.invitesRepo.findExistingInvite(
