@@ -109,6 +109,8 @@ export class QuizzesService {
       quizId,
       userId,
       score,
+      startedAt: new Date(submitDto.startedAt),
+      completedAt: new Date(submitDto.completedAt),
       answers,
     });
   }
@@ -121,8 +123,20 @@ export class QuizzesService {
   }
 
   async getAttempt(userId: number, quizId: number, attemptId: number) {
-    const attempt = await this.repo.findAttempt(attemptId, quizId, userId);
-    if (!attempt) throw new NotFoundException('Attempt not found');
-    return attempt;
+    const originalAttempt = await this.repo.findAttempt(
+      attemptId,
+      quizId,
+      userId,
+    );
+    if (!originalAttempt) throw new NotFoundException('Attempt not found');
+
+    const answers = originalAttempt.answers.map(
+      ({ quizQuestion, ...answer }) => ({
+        ...answer,
+        question: quizQuestion.question,
+      }),
+    );
+
+    return { ...originalAttempt, answers };
   }
 }

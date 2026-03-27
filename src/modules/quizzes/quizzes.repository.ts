@@ -100,6 +100,8 @@ export class QuizzesRepository {
     quizId: number;
     userId: number;
     score: number;
+    startedAt: Date;
+    completedAt: Date;
     answers: {
       quizQuestionId: number;
       userAnswer: string;
@@ -112,7 +114,8 @@ export class QuizzesRepository {
           quizId: data.quizId,
           userId: data.userId,
           score: data.score,
-          completed_at: new Date(),
+          started_at: data.startedAt,
+          completed_at: data.completedAt,
         },
       });
 
@@ -150,12 +153,38 @@ export class QuizzesRepository {
             quizQuestion: {
               include: {
                 question: {
-                  include: { mcqChoices: true, openEndedAnswer: true },
+                  select: {
+                    id: true,
+                    title: true,
+                    explanation: true,
+                    mcqChoices: {
+                      omit: {
+                        question_id: true,
+                      },
+                    },
+                    openEndedAnswer: {
+                      omit: {
+                        question_id: true,
+                      },
+                    },
+                  },
                 },
+              },
+              omit: {
+                quizId: true,
+                id: true,
+                questionId: true,
               },
             },
           },
+          omit: {
+            attemptId: true,
+          },
         },
+      },
+      omit: {
+        quizId: true,
+        userId: true,
       },
     });
   }

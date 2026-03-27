@@ -6,6 +6,7 @@ import {
   ArrayMinSize,
   ValidateNested,
   IsNotEmpty,
+  IsDateString,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -23,6 +24,14 @@ export class QuizAnswerDto {
 }
 
 export class SubmitQuizDto {
+  @ApiProperty({ description: 'ISO 8601 date string when the quiz was started' })
+  @IsDateString()
+  startedAt: string;
+
+  @ApiProperty({ description: 'ISO 8601 date string when the quiz was completed' })
+  @IsDateString()
+  completedAt: string;
+
   @ApiProperty({ type: [QuizAnswerDto] })
   @IsArray()
   @ArrayMinSize(1)

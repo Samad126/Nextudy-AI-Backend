@@ -17,7 +17,8 @@ export class GeminiService implements IGeminiService, IGeminiFileService {
     this.genAI = new GoogleGenerativeAI(apiKey);
     this.fileManager = new GoogleAIFileManager(apiKey);
     this.model = this.genAI.getGenerativeModel({
-      model: 'gemini-3.1-flash-lite-preview',
+      // model: 'gemini-3.1-flash-lite-preview',
+      model: 'gemini-2.5-flash',
     });
   }
 
@@ -68,7 +69,7 @@ export class GeminiService implements IGeminiService, IGeminiFileService {
     try {
       return JSON.parse(cleaned) as T;
     } catch {
-      this.logger.error('Gemini returned invalid JSON', rawText.slice(0, 500));
+      this.logger.error('Gemini returned invalid JSON', rawText);
       throw new BadRequestException(
         'AI response could not be processed. Please try again.',
       );
