@@ -8,6 +8,7 @@ import {
   Delete,
   ParseIntPipe,
   Query,
+  Header,
 } from '@nestjs/common';
 import { QuestionsService } from './questions.service.js';
 import { CreateQuestionDto } from './dto/create-question.dto.js';
@@ -32,6 +33,17 @@ export class QuestionsController {
     return this.questionsService.create(userId, createQuestionDto);
   }
 
+  @Get('export/pdf')
+  @Header('Content-Type', 'application/pdf')
+  @Header('Content-Disposition', 'attachment; filename="questions.pdf"')
+  @ApiOperation({ summary: 'Export all questions in a workbench as PDF' })
+  async exportPdf(
+    @GetUser('sub') userId: number,
+    @Query('workbenchId', ParseIntPipe) workbenchId: number,
+  ) {
+    return this.questionsService.exportPdf(userId, workbenchId);
+  }
+
   @Get()
   @ApiOperation({ summary: 'Get all questions for a workbench' })
   findAll(
@@ -47,7 +59,10 @@ export class QuestionsController {
   }
 
   @Patch(':id')
-  @ApiOperation({ summary: 'Edit a question (title, difficulty, MCQ choices, open-ended answer)' })
+  @ApiOperation({
+    summary:
+      'Edit a question (title, difficulty, MCQ choices, open-ended answer)',
+  })
   update(
     @GetUser('sub') userId: number,
     @Param('id', ParseIntPipe) id: number,

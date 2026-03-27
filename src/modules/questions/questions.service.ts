@@ -3,7 +3,9 @@ import {
   Inject,
   Injectable,
   Logger,
+  StreamableFile,
 } from '@nestjs/common';
+import PDFDocument from 'pdfkit';
 import {
   CreateQuestionDto,
   GenerationMode,
@@ -171,5 +173,115 @@ export class QuestionsService {
     await this.workbenches.verifyEditorAccess(userId, question.workbenchId);
     this.logger.log(`Question ${id} deleted`);
     return this.repo.deleteById(id);
+  }
+
+  async exportPdf(
+    userId: number,
+    workbenchId: number,
+  ): Promise<StreamableFile> {
+    await this.workbenches.verifyMemberAccess(userId, workbenchId);
+    const questions = await this.repo.findAllByWorkbench(workbenchId);
+
+    const doc = new PDFDocument({ margin: 50, size: 'A4' });
+    const chunks: Buffer[] = [];
+    doc.on('data', (chunk: Buffer) => chunks.push(chunk));
+
+    // ── Header ──────────────────────────────────────────────────────────────
+    doc
+      .fontSize(20)
+      .font('Helvetica-Bold')
+      .text('Workbench Questions', { align: 'center' });
+    doc.moveDown(0.5);
+    doc
+      .fontSize(10)
+      .font('Helvetica')
+      .fillColor('#666666')
+      .text(`Exported on ${new Date().toLocaleDateString()}`, {
+        align: 'center',
+      });
+    doc.fillColor('#000000');
+    doc.moveDown(1.5);
+
+    // ── Questions ────────────────────────────────────────────────────────────
+    questions.forEach((q, index) => {
+      const isLastQuestion = index === questions.length - 1;
+
+      // Question title
+      doc
+        .fontSize(12)
+        .font('Helvetica-Bold')
+        .text(`${index + 1}. ${q.title}`);
+
+      // Difficulty badge
+      if (q.difficulty) {
+        doc
+          .fontSize(9)
+          .font('Helvetica')
+          .fillColor('#888888')
+          .text(`Difficulty: ${q.difficulty}`, { continued: false });
+        doc.fillColor('#000000');
+      }
+
+      doc.moveDown(0.5);
+
+      // MCQ choices
+      if (q.question_type === 'mcq' && q.mcqChoices.length > 0) {
+        q.mcqChoices.forEach((choice, i) => {
+          const label = String.fromCharCode(65 + i);
+          const prefix = choice.is_correct ? `✓ ${label}.` : `   ${label}.`;
+          doc
+            .fontSize(11)
+            .font(choice.is_correct ? 'Helvetica-Bold' : 'Helvetica')
+            .fillColor(choice.is_correct ? '#1a7a1a' : '#000000')
+            .text(`${prefix} ${choice.choice_text}`, { indent: 20 });
+        });
+        doc.fillColor('#000000');
+      }
+
+      // Open-ended answer
+      if (q.question_type === 'open_ended' && q.openEndedAnswer) {
+        doc
+          .fontSize(10)
+          .font('Helvetica-Oblique')
+          .fillColor('#333333')
+          .text('Sample Answer:', { indent: 20 });
+        doc
+          .fontSize(10)
+          .font('Helvetica')
+          .fillColor('#000000')
+          .text(q.openEndedAnswer.sample_answer, { indent: 20 });
+      }
+
+      // Explanation
+      if (q.explanation) {
+        doc.moveDown(0.3);
+        doc
+          .fontSize(9)
+          .font('Helvetica-Oblique')
+          .fillColor('#555555')
+          .text(`Explanation: ${q.explanation}`, { indent: 20 });
+        doc.fillColor('#000000');
+      }
+
+      if (!isLastQuestion) {
+        doc.moveDown(1);
+        doc
+          .moveTo(50, doc.y)
+          .lineTo(545, doc.y)
+          .strokeColor('#cccccc')
+          .stroke();
+        doc.moveDown(1);
+      }
+    });
+
+    doc.end();
+
+    await new Promise<void>((resolve) => doc.on('end', resolve));
+
+    const buffer = Buffer.concat(chunks);
+    return new StreamableFile(buffer, {
+      type: 'application/pdf',
+      disposition: 'attachment; filename="questions.pdf"',
+    });
   }
 }
