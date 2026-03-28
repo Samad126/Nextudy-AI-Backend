@@ -19,6 +19,23 @@ export class ThrottlerStorageRedisService implements ThrottlerStorage {
   ): Promise<ThrottlerStorageRecord> {
     const ttlSeconds = Math.ceil(ttl / 1000);
     const hitKey = `throttle:${throttlerName}:${key}`;
+    const blockKey = `${hitKey}:blocked`;
+
+    // Check block status BEFORE incrementing so blocked requests
+    // don't keep growing the counter and refreshing the block
+    if (blockDuration > 0) {
+      const alreadyBlocked = await this.redisService.exists(blockKey);
+      if (alreadyBlocked) {
+        const timeToBlockExpire = await this.redisService.ttl(blockKey);
+        const timeToExpire = await this.redisService.ttl(hitKey);
+        return {
+          totalHits: limit + 1,
+          timeToExpire: Math.max(timeToExpire, 0),
+          isBlocked: true,
+          timeToBlockExpire,
+        };
+      }
+    }
 
     const hits = await this.redisService.incr(hitKey);
     if (hits === 1) {
@@ -31,14 +48,10 @@ export class ThrottlerStorageRedisService implements ThrottlerStorage {
     let timeToBlockExpire = 0;
 
     if (hits > limit && blockDuration > 0) {
-      const blockKey = `${hitKey}:blocked`;
       const blockTtlSeconds = Math.ceil(blockDuration / 1000);
-      const alreadyBlocked = await this.redisService.exists(blockKey);
-      if (!alreadyBlocked) {
-        await this.redisService.setex(blockKey, blockTtlSeconds, '1');
-      }
+      await this.redisService.setex(blockKey, blockTtlSeconds, '1');
       isBlocked = true;
-      timeToBlockExpire = await this.redisService.ttl(blockKey);
+      timeToBlockExpire = blockTtlSeconds;
     }
 
     return {

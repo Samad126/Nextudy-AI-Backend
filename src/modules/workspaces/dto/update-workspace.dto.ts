@@ -1,4 +1,15 @@
-import { PartialType } from '@nestjs/swagger';
-import { CreateWorkspaceDto } from './create-workspace.dto.js';
+import { ApiProperty } from '@nestjs/swagger';
+import { IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
 
-export class UpdateWorkspaceDto extends PartialType(CreateWorkspaceDto) {}
+export class UpdateWorkspaceDto {
+  @ApiProperty()
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(30)
+  name: string;
+
+  @ApiProperty()
+  @IsString()
+  @IsOptional()
+  description?: string;
+}

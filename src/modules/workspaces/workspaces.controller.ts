@@ -46,17 +46,20 @@ export class WorkspacesController {
   @Put(':id')
   @ApiOperation({ summary: 'Update a workspace' })
   update(
-    @Param('id') id: string,
+    @Param('id', ParseIntPipe) id: number,
     @GetUser('sub') userId: number,
     @Body() updateWorkspaceDto: UpdateWorkspaceDto,
   ) {
-    return this.workspacesService.update(userId, +id, updateWorkspaceDto);
+    return this.workspacesService.update(userId, id, updateWorkspaceDto);
   }
 
   @Delete(':id')
   @ApiOperation({ summary: 'Delete a workspace' })
-  remove(@Param('id') id: string, @GetUser('sub') userId: number) {
-    return this.workspacesService.remove(userId, +id);
+  remove(
+    @Param('id', ParseIntPipe) id: number,
+    @GetUser('sub') userId: number,
+  ) {
+    return this.workspacesService.remove(userId, id);
   }
 
   @Get(':id/overview')
