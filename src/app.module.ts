@@ -1,7 +1,11 @@
+import './instrument.js';
 import { Module } from '@nestjs/common';
+import { SentryModule } from '@sentry/nestjs/setup';
 import { DatabaseModule } from './common/database/database.module.js';
+import { HealthModule } from './modules/health/health.module.js';
 import { RedisModule } from './common/redis/redis.module.js';
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
+import { SentryGlobalFilter } from '@sentry/nestjs/setup';
 import { JwtAccessGuard } from './common/guards/jwt-access.guard.js';
 import { PrismaClientExceptionFilter } from './common/filters/prisma-exception.filter.js';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter.js';
@@ -23,8 +27,10 @@ import { RedisService } from './common/redis/redis.service.js';
 
 @Module({
   imports: [
+    SentryModule.forRoot(),
     ConfigModule.forRoot({ isGlobal: true, envFilePath: ['../.env', '.env'] }),
     DatabaseModule,
+    HealthModule,
     RedisModule,
     ThrottlerModule.forRootAsync({
       imports: [RedisModule],
@@ -46,6 +52,7 @@ import { RedisService } from './common/redis/redis.service.js';
     NotificationsModule,
   ],
   providers: [
+    { provide: APP_FILTER, useClass: SentryGlobalFilter },
     { provide: APP_INTERCEPTOR, useClass: TransformInterceptor },
     { provide: APP_FILTER, useClass: HttpExceptionFilter },
     { provide: APP_FILTER, useClass: PrismaClientExceptionFilter },
