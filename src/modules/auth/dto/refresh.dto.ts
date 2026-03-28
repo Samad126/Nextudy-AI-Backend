@@ -1,8 +1,10 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString } from 'class-validator';
+import { IsNotEmpty, IsString, MaxLength } from 'class-validator';
 
 export class RefreshDto {
   @ApiProperty()
   @IsString()
+  @IsNotEmpty()
+  @MaxLength(2048)
   refreshToken: string;
 }

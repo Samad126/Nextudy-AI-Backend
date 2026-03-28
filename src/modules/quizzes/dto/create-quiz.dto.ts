@@ -2,9 +2,11 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsArray,
   IsInt,
+  IsNotEmpty,
   IsOptional,
   IsString,
   ArrayMinSize,
+  MaxLength,
 } from 'class-validator';
 
 export class CreateQuizDto {
@@ -14,11 +16,15 @@ export class CreateQuizDto {
 
   @ApiProperty()
   @IsString()
+  @IsNotEmpty()
+  @MaxLength(100)
   title: string;
 
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
+  @IsNotEmpty()
+  @MaxLength(500)
   description?: string;
 
   @ApiProperty({ type: [Number], description: 'Array of question IDs' })

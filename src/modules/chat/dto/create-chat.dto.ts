@@ -1,4 +1,4 @@
-import { IsInt, IsString } from 'class-validator';
+import { IsInt, IsNotEmpty, IsString, MaxLength } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class CreateChatDto {
@@ -8,5 +8,7 @@ export class CreateChatDto {
 
   @ApiProperty()
   @IsString()
+  @IsNotEmpty()
+  @MaxLength(100)
   title: string;
 }

@@ -189,7 +189,7 @@ export class AuthService {
         data: {
           googleId,
           email,
-          firstName: given_name ?? '',
+          firstName: given_name ?? email.split('@')[0],
           lastName: family_name ?? '',
         },
       });

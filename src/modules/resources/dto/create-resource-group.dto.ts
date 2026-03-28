@@ -1,5 +1,12 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsInt, IsOptional, IsPositive, IsString } from 'class-validator';
+import {
+  IsInt,
+  IsNotEmpty,
+  IsOptional,
+  IsPositive,
+  IsString,
+  MaxLength,
+} from 'class-validator';
 
 export class CreateResourceGroupDto {
   @ApiProperty()
@@ -9,10 +16,14 @@ export class CreateResourceGroupDto {
 
   @ApiProperty()
   @IsString()
+  @IsNotEmpty()
+  @MaxLength(100)
   name: string;
 
   @ApiProperty()
   @IsString()
   @IsOptional()
+  @IsNotEmpty()
+  @MaxLength(500)
   description?: string;
 }

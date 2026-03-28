@@ -11,5 +11,7 @@ export class CreateWorkspaceDto {
   @ApiProperty()
   @IsString()
   @IsOptional()
+  @IsNotEmpty()
+  @MaxLength(500)
   description?: string;
 }

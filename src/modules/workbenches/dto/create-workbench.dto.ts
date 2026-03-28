@@ -1,10 +1,19 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsInt, IsOptional, IsPositive, IsString } from 'class-validator';
+import {
+  IsInt,
+  IsNotEmpty,
+  IsOptional,
+  IsPositive,
+  IsString,
+  MaxLength,
+} from 'class-validator';
 
 export class CreateWorkbenchDto {
   @ApiProperty()
   @IsString()
+  @IsNotEmpty()
+  @MaxLength(100)
   name: string;
 
   @ApiProperty()
@@ -15,5 +24,7 @@ export class CreateWorkbenchDto {
 
   @IsOptional()
   @IsString()
+  @IsNotEmpty()
+  @MaxLength(500)
   description?: string;
 }

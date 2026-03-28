@@ -9,6 +9,7 @@ import {
   Max,
   ArrayMinSize,
   MinLength,
+  MaxLength,
 } from 'class-validator';
 import { Difficulty } from '../../../../generated/prisma/client.js';
 
@@ -20,11 +21,14 @@ export class CreateFlashcardSetDto {
   @ApiProperty()
   @IsString()
   @MinLength(1)
+  @MaxLength(100)
   title: string;
 
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
+  @IsNotEmpty()
+  @MaxLength(500)
   description?: string;
 
   @ApiPropertyOptional({ enum: Difficulty })

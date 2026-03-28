@@ -1,5 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEnum, IsOptional, IsString, MinLength } from 'class-validator';
+import { IsEnum, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
 import { Difficulty } from '../../../../generated/prisma/client.js';
 
 export class UpdateFlashcardCardDto {
@@ -7,12 +7,14 @@ export class UpdateFlashcardCardDto {
   @IsOptional()
   @IsString()
   @MinLength(1)
+  @MaxLength(2000)
   question?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
   @MinLength(1)
+  @MaxLength(2000)
   answer?: string;
 
   @ApiPropertyOptional({ enum: Difficulty })

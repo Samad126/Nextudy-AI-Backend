@@ -9,6 +9,7 @@ import {
   IsPositive,
   IsString,
   Max,
+  MaxLength,
   Min,
   ValidateIf,
   ValidateNested,
@@ -29,6 +30,7 @@ export class UpdateMcqChoiceDto {
   @IsOptional()
   @IsString()
   @IsNotEmpty()
+  @MaxLength(500)
   choice_text?: string;
 
   @ApiPropertyOptional({ minimum: 0, maximum: 9 })
@@ -55,6 +57,7 @@ export class UpdateGradingKeywordDto {
   @IsOptional()
   @IsString()
   @IsNotEmpty()
+  @MaxLength(100)
   keyword?: string;
 
   @ApiPropertyOptional({ minimum: 0, maximum: 1 })
@@ -74,6 +77,7 @@ export class UpdateQuestionDto {
   @IsOptional()
   @IsString()
   @IsNotEmpty()
+  @MaxLength(500)
   title?: string;
 
   @ApiPropertyOptional({ enum: Difficulty })
@@ -84,6 +88,8 @@ export class UpdateQuestionDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
+  @IsNotEmpty()
+  @MaxLength(5000)
   explanation?: string;
 
   // ── MCQ-specific ────────────────────────────────────────────
@@ -103,6 +109,7 @@ export class UpdateQuestionDto {
   @IsOptional()
   @IsString()
   @IsNotEmpty()
+  @MaxLength(5000)
   sample_answer?: string;
 
   @ApiPropertyOptional({

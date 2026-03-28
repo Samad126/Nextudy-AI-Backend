@@ -10,6 +10,7 @@ export class ContactDto {
 
   @ApiProperty()
   @IsEmail()
+  @MaxLength(254)
   email: string;
 
   @ApiProperty()
