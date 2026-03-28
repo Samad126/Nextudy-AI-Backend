@@ -19,7 +19,7 @@ import { MailService } from '../../common/mail/mail.service.js';
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
 
-  private static readonly RESET_TOKEN_TTL = 900; // 15 minutes
+  private static readonly RESET_TOKEN_TTL = 120; // 2 minutes
 
   constructor(
     private readonly db: DatabaseService,
