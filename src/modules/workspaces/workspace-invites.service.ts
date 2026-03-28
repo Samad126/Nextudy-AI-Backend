@@ -4,9 +4,7 @@ import {
   ForbiddenException,
   Injectable,
   Logger,
-  NotFoundException,
 } from '@nestjs/common';
-import { InviteStatus } from '../../../generated/prisma/client.js';
 import { InviteMemberDto } from './dto/invite-member.dto.js';
 import { WorkspacesRepository } from './workspaces.repository.js';
 import { WorkspaceMembersRepository } from './workspace-members.repository.js';
@@ -77,43 +75,5 @@ export class WorkspaceInvitesService {
 
     this.logger.log(`Invite sent to ${dto.email} for workspace ${workspaceId}`);
     return { message: 'Invitation sent successfully' };
-  }
-
-  async respondToInvite(
-    userId: number,
-    inviteId: number,
-    action: 'accept' | 'reject',
-  ) {
-    const invite = await this.invitesRepo.findInviteWithNotification(inviteId);
-    if (!invite) throw new NotFoundException('Invite not found');
-
-    const user = await this.invitesRepo.findUserEmail(userId);
-    if (invite.invitee_id !== userId && invite.invitee_email !== user.email) {
-      throw new ForbiddenException('This invite is not for you');
-    }
-
-    if (invite.status !== InviteStatus.pending) {
-      throw new ForbiddenException(`Invite has already been ${invite.status}`);
-    }
-
-    const newStatus =
-      action === 'accept' ? InviteStatus.accepted : InviteStatus.rejected;
-
-    await this.invitesRepo.respondToInviteTransaction(
-      inviteId,
-      userId,
-      newStatus,
-      invite.notification_id,
-      invite.workspaceId,
-      action === 'accept',
-    );
-
-    this.logger.log(`User ${userId} ${action}ed invite ${inviteId}`);
-    return {
-      message:
-        action === 'accept'
-          ? 'Invite accepted, you have joined the workspace'
-          : 'Invite rejected',
-    };
   }
 }
