@@ -69,7 +69,7 @@ export class FlashcardsRepository {
     });
   }
 
-  updateSet(id: number, dto: Omit<UpdateFlashcardSetDto, 'resourceIds'>) {
+  updateSet(id: number, dto: UpdateFlashcardSetDto) {
     return this.db.flashcardSet.update({
       where: { id },
       data: dto,

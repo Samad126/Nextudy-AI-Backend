@@ -103,14 +103,7 @@ export class FlashcardsService {
     const set = await this.repo.findOneAsEditor(id, userId);
     if (!set) throw new NotFoundException('Flashcard set not found');
 
-    const { resourceIds, ...scalars } = dto;
-
-    if (resourceIds !== undefined) {
-      await this.resourcesSvc.validateResourceIds(resourceIds, set.workspaceId);
-      return this.repo.updateSetWithResources(id, scalars, resourceIds);
-    }
-
-    return this.repo.updateSet(id, scalars);
+    return this.repo.updateSet(id, dto);
   }
 
   async removeSet(userId: number, id: number) {

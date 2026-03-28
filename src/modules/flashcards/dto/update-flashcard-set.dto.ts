@@ -1,12 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import {
-  IsArray,
-  IsInt,
-  IsOptional,
-  IsString,
-  ArrayMinSize,
-  MinLength,
-} from 'class-validator';
+import { IsOptional, IsString, MinLength } from 'class-validator';
 
 export class UpdateFlashcardSetDto {
   @ApiPropertyOptional()
@@ -19,11 +12,4 @@ export class UpdateFlashcardSetDto {
   @IsOptional()
   @IsString()
   description?: string;
-
-  @ApiPropertyOptional({ type: [Number] })
-  @IsOptional()
-  @IsArray()
-  @ArrayMinSize(1)
-  @IsInt({ each: true })
-  resourceIds?: number[];
 }
