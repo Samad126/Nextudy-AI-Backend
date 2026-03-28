@@ -10,6 +10,7 @@ import {
   ArrayMinSize,
   MinLength,
   MaxLength,
+  IsNotEmpty,
 } from 'class-validator';
 import { Difficulty } from '../../../../generated/prisma/client.js';
 

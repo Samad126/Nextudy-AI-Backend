@@ -51,7 +51,9 @@ export class FlashcardsController {
   }
 
   @Patch(':id')
-  @ApiOperation({ summary: 'Update a flashcard set (title, description, resources)' })
+  @ApiOperation({
+    summary: 'Update a flashcard set (title, description, resources)',
+  })
   updateSet(
     @GetUser('sub') userId: number,
     @Param('id', ParseIntPipe) id: number,
