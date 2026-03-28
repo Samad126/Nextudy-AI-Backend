@@ -1,6 +1,12 @@
 import { GoogleGenerativeAI, GenerativeModel } from '@google/generative-ai';
 import { GoogleAIFileManager } from '@google/generative-ai/server';
-import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import {
+  BadRequestException,
+  HttpException,
+  HttpStatus,
+  Injectable,
+  Logger,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { IGeminiService } from './gemini.interface.js';
 import type { IGeminiFileService } from './gemini-file.interface.js';
@@ -43,6 +49,38 @@ export class GeminiService implements IGeminiService, IGeminiFileService {
     }
   }
 
+  private handleGeminiError(error: unknown): never {
+    const status =
+      typeof error === 'object' && error !== null && 'status' in error
+        ? (error as { status: number }).status
+        : null;
+
+    if (status === 429) {
+      throw new HttpException(
+        'AI service is rate limited. Please wait a moment and try again.',
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+    if (status === 503) {
+      throw new HttpException(
+        'AI service is temporarily unavailable. Please try again shortly.',
+        HttpStatus.SERVICE_UNAVAILABLE,
+      );
+    }
+    if (status === 500) {
+      throw new HttpException(
+        'AI service encountered an internal error. Please try again.',
+        HttpStatus.BAD_GATEWAY,
+      );
+    }
+
+    this.logger.error('Gemini API error', error);
+    throw new HttpException(
+      'AI service request failed. Please try again.',
+      HttpStatus.BAD_GATEWAY,
+    );
+  }
+
   async generateWithFiles(
     prompt: string,
     files: { uri: string; mimeType: string }[],
@@ -54,11 +92,14 @@ export class GeminiService implements IGeminiService, IGeminiFileService {
       { text: prompt },
     ];
 
-    const result = await this.model.generateContent({
-      contents: [{ role: 'user', parts }],
-    });
-
-    return result.response.text();
+    try {
+      const result = await this.model.generateContent({
+        contents: [{ role: 'user', parts }],
+      });
+      return result.response.text();
+    } catch (error) {
+      this.handleGeminiError(error);
+    }
   }
 
   parseJsonResponse<T>(rawText: string): T {
@@ -114,11 +155,14 @@ export class GeminiService implements IGeminiService, IGeminiFileService {
       { text: userMessage },
     ];
 
-    const result = await chat.sendMessageStream(userParts);
-
-    for await (const chunk of result.stream) {
-      const text = chunk.text();
-      if (text) yield text;
+    try {
+      const result = await chat.sendMessageStream(userParts);
+      for await (const chunk of result.stream) {
+        const text = chunk.text();
+        if (text) yield text;
+      }
+    } catch (error) {
+      this.handleGeminiError(error);
     }
   }
 
@@ -150,8 +194,12 @@ export class GeminiService implements IGeminiService, IGeminiFileService {
       { text: `${userMessage}\n\n${jsonInstruction}` },
     ];
 
-    const result = await chat.sendMessage(userParts);
-    return result.response.text();
+    try {
+      const result = await chat.sendMessage(userParts);
+      return result.response.text();
+    } catch (error) {
+      this.handleGeminiError(error);
+    }
   }
 }
 
