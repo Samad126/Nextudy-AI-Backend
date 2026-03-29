@@ -20,7 +20,7 @@ import {
 import { ChatRepository } from './chat.repository.js';
 import { WorkbenchesRepository } from '../workbenches/workbenches.repository.js';
 
-const MODEL_ID = 'gemini-3.1-flash-lite-preview';
+const MODEL_ID = 'gemini-2.5-flash';
 
 type WorkbenchResource = {
   id: number;

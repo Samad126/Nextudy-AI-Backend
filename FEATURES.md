@@ -180,7 +180,7 @@
 - `httpOnly` + `secure` (production) cookies for refresh tokens
 
 ### AI — Google Gemini
-- Model: `gemini-3.1-flash-lite-preview`
+- Model: `gemini-2.5-flash`
 - Used for: question generation, flashcard generation, chat responses
 - Files uploaded to Gemini Files API; deleted on resource removal
 - Structured JSON extraction with markdown fence cleanup

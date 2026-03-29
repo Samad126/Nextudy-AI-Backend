@@ -23,7 +23,7 @@ export class GeminiService implements IGeminiService, IGeminiFileService {
     this.genAI = new GoogleGenerativeAI(apiKey);
     this.fileManager = new GoogleAIFileManager(apiKey);
     this.model = this.genAI.getGenerativeModel({
-      // model: 'gemini-3.1-flash-lite-preview',
+      // model: 'gemini-2.5-flash',
       model: 'gemini-2.5-flash',
     });
   }
@@ -136,7 +136,7 @@ export class GeminiService implements IGeminiService, IGeminiFileService {
   ): AsyncGenerator<string> {
     const modelWithSystem = systemPrompt
       ? this.genAI.getGenerativeModel({
-          model: 'gemini-3.1-flash-lite-preview',
+          model: 'gemini-2.5-flash',
           systemInstruction: systemPrompt,
         })
       : this.model;
@@ -175,7 +175,7 @@ export class GeminiService implements IGeminiService, IGeminiFileService {
   ): Promise<string> {
     const modelWithSystem = systemPrompt
       ? this.genAI.getGenerativeModel({
-          model: 'gemini-3.1-flash-lite-preview',
+          model: 'gemini-2.5-flash',
           systemInstruction: systemPrompt,
         })
       : this.model;
