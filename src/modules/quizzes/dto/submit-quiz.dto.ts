@@ -2,10 +2,8 @@ import { ApiProperty } from '@nestjs/swagger';
 import {
   IsArray,
   IsInt,
-  IsString,
   ArrayMinSize,
   ValidateNested,
-  IsNotEmpty,
   IsDateString,
 } from 'class-validator';
 import { Type } from 'class-transformer';
@@ -16,19 +14,23 @@ export class QuizAnswerDto {
   quizQuestionId: number;
 
   @ApiProperty({
-    description: 'For MCQ: the MCQChoice ID (number). For open-ended: free text (string).',
+    description:
+      'For MCQ: the MCQChoice ID (number). For open-ended: free text (string).',
     oneOf: [{ type: 'string' }, { type: 'integer' }],
   })
-  @IsNotEmpty()
   userAnswer: string | number;
 }
 
 export class SubmitQuizDto {
-  @ApiProperty({ description: 'ISO 8601 date string when the quiz was started' })
+  @ApiProperty({
+    description: 'ISO 8601 date string when the quiz was started',
+  })
   @IsDateString()
   startedAt: string;
 
-  @ApiProperty({ description: 'ISO 8601 date string when the quiz was completed' })
+  @ApiProperty({
+    description: 'ISO 8601 date string when the quiz was completed',
+  })
   @IsDateString()
   completedAt: string;
 
