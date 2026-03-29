@@ -45,7 +45,12 @@ export class GeminiService implements IGeminiService, IGeminiFileService {
     // extract the file name (files/<id>) from the URI
     const match = storeId.match(/\/files\/([^/]+)$/);
     if (match) {
-      await this.fileManager.deleteFile(`files/${match[1]}`);
+      try {
+        await this.fileManager.deleteFile(`files/${match[1]}`);
+      } catch (err: unknown) {
+        const status = (err as { status?: number })?.status;
+        if (status !== 403 && status !== 404) throw err;
+      }
     }
   }
 
