@@ -47,13 +47,13 @@ export class FlashcardsService {
     if (!workspace) throw new ForbiddenException('Access denied');
 
     await this.resourcesSvc.validateResourceIds(resourceIds, workspaceId);
-    const files = await this.resourcesSvc.getGeminiFiles(
+    const { files, htmlTexts } = await this.resourcesSvc.getGeminiFiles(
       resourceIds,
       workspaceId,
     );
 
     const prompt = buildFlashcardPrompt(count, difficulty);
-    const rawText = await this.gemini.generateWithFiles(prompt, files);
+    const rawText = await this.gemini.generateWithFiles(prompt, files, htmlTexts);
     const parsed =
       this.gemini.parseJsonResponse<GeneratedFlashcardsResponse>(rawText);
 

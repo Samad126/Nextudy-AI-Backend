@@ -1,4 +1,8 @@
-import { GoogleGenerativeAI, GenerativeModel } from '@google/generative-ai';
+import {
+  GoogleGenerativeAI,
+  GenerativeModel,
+  type Part,
+} from '@google/generative-ai';
 import { GoogleAIFileManager } from '@google/generative-ai/server';
 import {
   BadRequestException,
@@ -8,7 +12,11 @@ import {
   Logger,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import type { IGeminiService } from './gemini.interface.js';
+import type {
+  IGeminiService,
+  GeminiResourceInput,
+  GeminiParts,
+} from './gemini.interface.js';
 import type { IGeminiFileService } from './gemini-file.interface.js';
 
 @Injectable()
@@ -23,8 +31,8 @@ export class GeminiService implements IGeminiService, IGeminiFileService {
     this.genAI = new GoogleGenerativeAI(apiKey);
     this.fileManager = new GoogleAIFileManager(apiKey);
     this.model = this.genAI.getGenerativeModel({
-      // model: 'gemini-2.5-flash',
-      model: 'gemini-2.5-flash',
+      // model: 'gemini-3.1-flash-lite-preview',
+      model: 'gemini-3.1-flash-lite-preview',
     });
   }
 
@@ -86,16 +94,28 @@ export class GeminiService implements IGeminiService, IGeminiFileService {
     );
   }
 
-  async generateWithFiles(
-    prompt: string,
+  private buildParts(
     files: { uri: string; mimeType: string }[],
-  ): Promise<string> {
-    const parts = [
+    htmlTexts: string[],
+    prompt: string,
+  ): Part[] {
+    return [
       ...files.map((f) => ({
         fileData: { fileUri: f.uri, mimeType: f.mimeType },
       })),
+      ...htmlTexts.map((html) => ({
+        text: `<document_html>\nThe following is the raw HTML source of a study document. HTML tags are part of the content and must be preserved exactly as-is when quoting snippets.\n${html}\n</document_html>`,
+      })),
       { text: prompt },
     ];
+  }
+
+  async generateWithFiles(
+    prompt: string,
+    files: { uri: string; mimeType: string }[],
+    htmlTexts: string[] = [],
+  ): Promise<string> {
+    const parts = this.buildParts(files, htmlTexts, prompt);
 
     try {
       const result = await this.model.generateContent({
@@ -122,15 +142,22 @@ export class GeminiService implements IGeminiService, IGeminiFileService {
     }
   }
 
-  toGeminiFiles(
-    resources: Array<{ store_id: string; mime_type: string }>,
-  ): { uri: string; mimeType: string }[] {
+  toGeminiFiles(resources: GeminiResourceInput[]): GeminiParts {
     if (resources.length === 0) {
       throw new BadRequestException(
         'None of the selected resources have been uploaded to Gemini yet.',
       );
     }
-    return resources.map((r) => ({ uri: r.store_id, mimeType: r.mime_type }));
+    const files: { uri: string; mimeType: string }[] = [];
+    const htmlTexts: string[] = [];
+    for (const r of resources) {
+      if (r.type === 'IMAGE' || !r.content) {
+        files.push({ uri: r.store_id, mimeType: r.mime_type });
+      } else {
+        htmlTexts.push(r.content);
+      }
+    }
+    return { files, htmlTexts };
   }
 
   async *streamChatResponse(
@@ -138,10 +165,11 @@ export class GeminiService implements IGeminiService, IGeminiFileService {
     history: { role: 'user' | 'model'; content: string }[],
     files: { uri: string; mimeType: string }[],
     systemPrompt?: string,
+    htmlTexts: string[] = [],
   ): AsyncGenerator<string> {
     const modelWithSystem = systemPrompt
       ? this.genAI.getGenerativeModel({
-          model: 'gemini-2.5-flash',
+          model: 'gemini-3.1-flash-lite-preview',
           systemInstruction: systemPrompt,
         })
       : this.model;
@@ -153,12 +181,7 @@ export class GeminiService implements IGeminiService, IGeminiFileService {
 
     const chat = modelWithSystem.startChat({ history: geminiHistory });
 
-    const userParts = [
-      ...files.map((f) => ({
-        fileData: { fileUri: f.uri, mimeType: f.mimeType },
-      })),
-      { text: userMessage },
-    ];
+    const userParts = this.buildParts(files, htmlTexts, userMessage);
 
     try {
       const result = await chat.sendMessageStream(userParts);
@@ -171,16 +194,25 @@ export class GeminiService implements IGeminiService, IGeminiFileService {
     }
   }
 
+  async extractTextFromFile(uri: string): Promise<string> {
+    const prompt =
+      'Extract all text from this file and format it as clean HTML. Use semantic tags such as <h1>–<h6>, <p>, <strong>, <em>, <ul>, <ol>, <li>, <table>, <tr>, <th>, <td>, and <br> where appropriate. Output only the HTML content with no wrapping <html>, <head>, or <body> tags and no markdown.';
+    return this.generateWithFiles(prompt, [
+      { uri, mimeType: 'application/pdf' },
+    ]);
+  }
+
   async generateChatResponse(
     userMessage: string,
     history: { role: 'user' | 'model'; content: string }[],
     files: { uri: string; mimeType: string }[],
     jsonInstruction: string,
     systemPrompt?: string,
+    htmlTexts: string[] = [],
   ): Promise<string> {
     const modelWithSystem = systemPrompt
       ? this.genAI.getGenerativeModel({
-          model: 'gemini-2.5-flash',
+          model: 'gemini-3.1-flash-lite-preview',
           systemInstruction: systemPrompt,
         })
       : this.model;
@@ -192,12 +224,11 @@ export class GeminiService implements IGeminiService, IGeminiFileService {
 
     const chat = modelWithSystem.startChat({ history: geminiHistory });
 
-    const userParts = [
-      ...files.map((f) => ({
-        fileData: { fileUri: f.uri, mimeType: f.mimeType },
-      })),
-      { text: `${userMessage}\n\n${jsonInstruction}` },
-    ];
+    const userParts = this.buildParts(
+      files,
+      htmlTexts,
+      `${userMessage}\n\n${jsonInstruction}`,
+    );
 
     try {
       const result = await chat.sendMessage(userParts);

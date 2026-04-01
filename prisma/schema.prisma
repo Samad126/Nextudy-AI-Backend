@@ -204,6 +204,7 @@ model Resource {
   store_id    String
   file_size   Int?
   mime_type   String
+  content     String?
   created_at  DateTime     @default(now())
 
   workspace      Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)

@@ -12,6 +12,8 @@ import { CreateResourceGroupDto } from './dto/create-resource-group.dto.js';
 import { UpdateResourceGroupDto } from './dto/update-resource-group.dto.js';
 import type { IGeminiFileService } from '../gemini/gemini-file.interface.js';
 import { GEMINI_FILE_SERVICE } from '../gemini/gemini-file.interface.js';
+import type { IGeminiService } from '../gemini/gemini.interface.js';
+import { GEMINI_SERVICE } from '../gemini/gemini.interface.js';
 import { ResourcesRepository } from './resources.repository.js';
 import { WorkspacesRepository } from '../workspaces/workspaces.repository.js';
 
@@ -23,6 +25,7 @@ export class ResourcesService {
     private readonly repo: ResourcesRepository,
     private readonly workspacesRepo: WorkspacesRepository,
     @Inject(GEMINI_FILE_SERVICE) private readonly gemini: IGeminiFileService,
+    @Inject(GEMINI_SERVICE) private readonly geminiService: IGeminiService,
   ) {}
 
   private getResourceType(mimetype: string): ResourceType {
@@ -56,6 +59,22 @@ export class ResourcesService {
     });
 
     this.logger.log(`Resource created in workspace ${workspaceId}`);
+
+    if (resource.type === ResourceType.PDF) {
+      this.geminiService
+        .extractTextFromFile(storeId)
+        .then(async (content) => {
+          await this.repo.updateResourceContent(resource.id, content);
+          this.logger.log('RESOURCE CONTENT CREATED');
+        })
+        .catch((err) =>
+          this.logger.error(
+            `Failed to extract text for resource ${resource.id}`,
+            err,
+          ),
+        );
+    }
+
     return resource;
   }
 
@@ -73,6 +92,12 @@ export class ResourcesService {
     const resource = await this.repo.findResourceAsMember(resourceId, userId);
     if (!resource) throw new NotFoundException('Resource not found');
     return resource;
+  }
+
+  async getContent(userId: number, resourceId: number) {
+    const resource = await this.repo.findResourceAsMember(resourceId, userId);
+    if (!resource) throw new NotFoundException('Resource not found');
+    return { content: resource.content ?? null };
   }
 
   async remove(userId: number, resourceId: number) {
@@ -154,20 +179,12 @@ export class ResourcesService {
     }
   }
 
-  async getGeminiFiles(
-    resourceIds: number[],
-    workspaceId: number,
-  ): Promise<{ uri: string; mimeType: string }[]> {
+  async getGeminiFiles(resourceIds: number[], workspaceId: number) {
     const resources = await this.repo.findResourcesWithStore(
       resourceIds,
       workspaceId,
     );
-    if (resources.length === 0) {
-      throw new BadRequestException(
-        'None of the selected resources have been uploaded to Gemini yet.',
-      );
-    }
-    return resources.map((r) => ({ uri: r.store_id, mimeType: r.mime_type }));
+    return this.geminiService.toGeminiFiles(resources);
   }
 
   async removeResourceFromGroup(

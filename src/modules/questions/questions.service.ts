@@ -53,7 +53,7 @@ export class QuestionsService {
     validateQuestionOptions(createQuestionDto);
 
     // ── 1. Fetch Gemini-uploaded resources ────────────
-    const { files, resourceMeta } =
+    const { files, htmlTexts, resourceMeta } =
       await this.workbenches.getGeminiFilesWithMeta(userId, workbenchId);
 
     // ── 2. Build prompt ──────────────────────────────────────────────────
@@ -74,7 +74,7 @@ export class QuestionsService {
 
     // ── 3. Call Gemini ───────────────────────────────────────────────────
 
-    const rawText = await this.gemini.generateWithFiles(prompt, files);
+    const rawText = await this.gemini.generateWithFiles(prompt, files, htmlTexts);
 
     // ── 4. Parse & validate Gemini response ──────────────────────────────
     const parsed =
@@ -90,6 +90,7 @@ export class QuestionsService {
     }
 
     // ── 5. Persist to DB ─────────────────────────────────────────────────
+    await this.repo.deleteAllByWorkbench(workbenchId);
     this.logger.log(
       `Persisting ${parsed.questions.length} questions for workbench ${workbenchId}`,
     );
@@ -109,7 +110,7 @@ export class QuestionsService {
     await this.workbenches.verifyMemberAccess(userId, question.workbenchId);
 
     // ── 2. Fetch Gemini-uploaded resources for the workbench ─────────────
-    const { files, resourceMeta } =
+    const { files, htmlTexts, resourceMeta } =
       await this.workbenches.getGeminiFilesWithMeta(
         userId,
         question.workbenchId,
@@ -129,7 +130,7 @@ export class QuestionsService {
     });
 
     // ── 4. Call Gemini ───────────────────────────────────────────────────
-    const rawText = await this.gemini.generateWithFiles(prompt, files);
+    const rawText = await this.gemini.generateWithFiles(prompt, files, htmlTexts);
 
     // ── 5. Parse & validate ──────────────────────────────────────────────
     const parsed =

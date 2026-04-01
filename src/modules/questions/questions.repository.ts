@@ -137,6 +137,10 @@ export class QuestionsRepository {
     return question;
   }
 
+  async deleteAllByWorkbench(workbenchId: number) {
+    await this.db.question.deleteMany({ where: { workbenchId } });
+  }
+
   async deleteById(questionId: number) {
     await this.db.question.delete({ where: { id: questionId } });
     return { message: 'Question deleted successfully' };

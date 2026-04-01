@@ -109,10 +109,17 @@ export class ResourcesRepository {
     });
   }
 
+  updateResourceContent(resourceId: number, content: string) {
+    return this.db.resource.update({
+      where: { id: resourceId },
+      data: { content },
+    });
+  }
+
   findResourcesWithStore(resourceIds: number[], workspaceId: number) {
     return this.db.resource.findMany({
       where: { id: { in: resourceIds }, workspaceId },
-      select: { store_id: true, mime_type: true },
+      select: { store_id: true, mime_type: true, type: true, content: true },
     });
   }
 }

@@ -55,6 +55,15 @@ export class ResourcesController {
     return this.resourcesService.findAll(userId, workspaceId);
   }
 
+  @Get(':id/content')
+  @ApiOperation({ summary: 'Get extracted text content of a resource' })
+  getContent(
+    @GetUser('sub') userId: number,
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    return this.resourcesService.getContent(userId, id);
+  }
+
   @Get(':id/download')
   @ApiOperation({ summary: 'Download a resource' })
   async downloadResource(

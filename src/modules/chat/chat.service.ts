@@ -20,7 +20,7 @@ import {
 import { ChatRepository } from './chat.repository.js';
 import { WorkbenchesRepository } from '../workbenches/workbenches.repository.js';
 
-const MODEL_ID = 'gemini-2.5-flash';
+const MODEL_ID = 'gemini-3.1-flash-lite-preview';
 
 type WorkbenchResource = {
   id: number;
@@ -53,7 +53,7 @@ export class ChatService {
     history: { role: 'user' | 'model'; content: string }[],
     resources: WorkbenchResource[],
   ) {
-    const files = this.gemini.toGeminiFiles(resources);
+    const { files, htmlTexts } = this.gemini.toGeminiFiles(resources);
 
     const resourceMeta = resources.map((r) => ({ id: r.id, fileName: r.name }));
     const jsonInstruction = buildChatJsonInstruction(resourceMeta);
@@ -64,6 +64,7 @@ export class ChatService {
       files,
       jsonInstruction,
       SYSTEM_PROMPT,
+      htmlTexts,
     );
 
     return this.gemini.parseJsonResponse<ChatAIResponse>(rawText);
@@ -145,7 +146,7 @@ export class ChatService {
     const workbenchResources =
       await this.workbenchesRepo.findResources(workbenchId);
     const resources = workbenchResources.map((wr) => wr.resource);
-    const files = this.gemini.toGeminiFiles(resources);
+    const { files, htmlTexts } = this.gemini.toGeminiFiles(resources);
 
     const resourceMeta = resources.map((r) => ({ id: r.id, fileName: r.name }));
     const jsonInstruction = buildChatJsonInstruction(resourceMeta);
@@ -169,6 +170,7 @@ export class ChatService {
       history,
       files,
       SYSTEM_PROMPT,
+      htmlTexts,
     )) {
       fullText += chunk;
 
