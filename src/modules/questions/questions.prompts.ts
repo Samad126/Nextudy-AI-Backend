@@ -36,7 +36,7 @@ export interface QuestionRaw {
   choices?: MCQChoiceRaw[];
   sample_answer?: string;
   grading_keywords?: GradingKeywordRaw[];
-  source_citation?: SourceCitationRaw | null;
+  source_citations?: SourceCitationRaw[];
 }
 
 export interface GeneratedQuestionsResponse {
@@ -54,7 +54,9 @@ const JSON_SCHEMA = `{
       "difficulty": "EASY" | "MEDIUM" | "HARD",
       "answer_source": "file" | "ai",
       "explanation": "Brief explanation of why the answer is correct",
-      "source_citation": { "resourceId": 1, "fileName": "lecture.pdf", "page": 3, "snippet": "Copy-paste exact HTML substring from the document — no tag changes" } | null,
+      "source_citations": [
+        { "resourceId": 1, "fileName": "lecture.pdf", "page": 3, "snippet": "Copy-paste exact HTML substring from the document — no tag changes" }
+      ],
       "choices": [
         { "choice_text": "Option A", "choice_order": 1, "is_correct": false },
         { "choice_text": "Option B", "choice_order": 2, "is_correct": true },
@@ -68,7 +70,9 @@ const JSON_SCHEMA = `{
       "difficulty": "EASY" | "MEDIUM" | "HARD",
       "answer_source": "file" | "ai",
       "explanation": "Key concepts the answer should cover",
-      "source_citation": { "resourceId": 1, "fileName": "lecture.pdf", "page": 3, "snippet": "Copy-paste exact HTML substring from the document — no tag changes" } | null,
+      "source_citations": [
+        { "resourceId": 1, "fileName": "lecture.pdf", "page": 3, "snippet": "Copy-paste exact HTML substring from the document — no tag changes" }
+      ],
       "sample_answer": "A well-structured sample answer",
       "grading_keywords": [
         { "keyword": "key concept", "weight": 1.0, "is_required": true },
@@ -149,7 +153,7 @@ INSTRUCTIONS:
 7. For open_ended: ${answerLength ? `sample_answer should be approximately ${answerLength.amount} ${answerLength.unit} long` : 'sample_answer should be 2–5 sentences'}; grading_keywords should reflect the most important concepts needed in a correct answer.
 8. The "explanation" field is mandatory for all questions.
 9. Set answer_source to "file" if the correct answer / sample answer was taken verbatim or near-verbatim from the document, or "ai" if you used your own knowledge to write or significantly rephrase it.
-10. source_citation: If answer_source is "file", populate source_citation with { "resourceId": <id from the list above>, "fileName": "<fileName>", "page": <page number or null>, "snippet": "<copy-paste the exact HTML substring from the document as-is>" }. CRITICAL for snippet: the document is raw HTML. Find the smallest block element that contains the answer (e.g. a <p>, <li>, <h2>, <td>) and copy its full opening tag, all inner content, and closing tag exactly as they appear in the raw HTML — character-for-character. Rules: (1) Copy the entire element from its opening tag to its closing tag — do NOT omit, skip, or truncate any part of its content. (2) The snippet must be one contiguous copy — do NOT merge non-adjacent portions or jump over text in the middle. (3) Do NOT use ellipsis ("..." or "…") anywhere. (4) Parentheses "()" in the source are literal text characters — do NOT treat them as a cue to summarize or skip. (5) Do NOT reconstruct or wrap the element in a new parent (e.g. never wrap a <li> inside a new <ul>/<ol> — copy just the <li>…</li> itself). (6) Do NOT strip, add, or modify any HTML tags or attributes. The snippet must be a verbatim substring of the raw HTML such that indexOf(snippet) > -1 on the source HTML string. If answer_source is "ai", set source_citation to null.
+10. source_citations: If answer_source is "file", populate source_citations as an array of citation objects — one entry per source passage used. Each entry: { "resourceId": <id from the list above>, "fileName": "<fileName>", "page": <page number or null>, "snippet": "<copy-paste the exact HTML substring from the document as-is>" }. If the answer draws from multiple documents or multiple passages in the same document, include one entry per passage. CRITICAL for snippet: the document is raw HTML. Find the smallest block element that contains the answer (e.g. a <p>, <li>, <h2>, <td>) and copy its full opening tag, all inner content, and closing tag exactly as they appear in the raw HTML — character-for-character. Rules: (1) Copy the entire element from its opening tag to its closing tag — do NOT omit, skip, or truncate any part of its content. (2) The snippet must be one contiguous copy — do NOT merge non-adjacent portions or jump over text in the middle. (3) Do NOT use ellipsis ("..." or "…") anywhere. (4) Parentheses "()" in the source are literal text characters — do NOT treat them as a cue to summarize or skip. (5) Do NOT reconstruct or wrap the element in a new parent (e.g. never wrap a <li> inside a new <ul>/<ol> — copy just the <li>…</li> itself). (6) Do NOT strip, add, or modify any HTML tags or attributes. The snippet must be a verbatim substring of the raw HTML such that indexOf(snippet) > -1 on the source HTML string. If answer_source is "ai", set source_citations to [].
 
 OUTPUT FORMAT:
 Return ONLY raw JSON — no markdown, no code fences, no extra text before or after. The JSON must strictly follow this schema:
@@ -197,7 +201,7 @@ export function buildRegeneratePrompt(dto: {
           .join('\n')
       : '  (none)';
 
-  const sourceCitationField = `"source_citation": { "resourceId": 1, "fileName": "lecture.pdf", "page": 3, "snippet": "Copy-paste exact HTML substring from the document — no tag changes" } | null`;
+  const sourceCitationField = `"source_citations": [{ "resourceId": 1, "fileName": "lecture.pdf", "page": 3, "snippet": "Copy-paste exact HTML substring from the document — no tag changes" }]`;
 
   const singleQuestionSchema =
     questionType === 'mcq'
@@ -249,7 +253,7 @@ INSTRUCTIONS:
 4. ${answerSourceInstruction}
 5. The "explanation" field is mandatory.
 6. Set answer_source to "file" if the correct answer was taken verbatim from the document, or "ai" if you used your own knowledge.
-7. source_citation: If answer_source is "file", populate source_citation with { "resourceId": <id from list>, "fileName": "<fileName>", "page": <page or null>, "snippet": "<copy-paste the exact HTML substring from the document as-is>" }. CRITICAL for snippet: treat the HTML document as a plain string and copy-paste the relevant portion character-for-character. Do NOT add extra tags (e.g. <p>, <span>), do NOT remove existing tags, do NOT reformat or pretty-print the HTML. The snippet must be a literal substring of the source HTML. If answer_source is "ai", set source_citation to null.
+7. source_citations: If answer_source is "file", populate source_citations as an array — one entry per passage used: { "resourceId": <id from list>, "fileName": "<fileName>", "page": <page or null>, "snippet": "<copy-paste the exact HTML substring as-is>" }. If multiple passages support the answer, include one entry each. Snippet rules: copy the smallest block element verbatim, no truncation, no ellipsis, no tag changes, must be a literal substring of the source HTML. If answer_source is "ai", set source_citations to [].
 
 OUTPUT FORMAT:
 Return ONLY raw JSON — no markdown, no code fences, no extra text. The JSON must strictly follow this schema:
@@ -289,7 +293,7 @@ Rules:
 - Do not add or remove questions — structure exactly what the user provided.
 - ${answerSourceInstruction}
 - Set answer_source to "file" if the correct answer / sample answer was taken verbatim or near-verbatim from the document, or "ai" if you used your own knowledge to write or significantly rephrase it.
-- source_citation: If answer_source is "file", populate source_citation with { "resourceId": <id from list>, "fileName": "<fileName>", "page": <page or null>, "snippet": "<copy-paste the exact HTML substring from the document as-is>" }. CRITICAL for snippet: treat the HTML document as a plain string and copy-paste the relevant portion character-for-character. Do NOT add extra tags (e.g. <p>, <span>), do NOT remove existing tags, do NOT reformat or pretty-print the HTML. The snippet must be a literal substring of the source HTML. If answer_source is "ai", set source_citation to null.
+- source_citations: If answer_source is "file", populate source_citations as an array — one entry per passage used: { "resourceId": <id from list>, "fileName": "<fileName>", "page": <page or null>, "snippet": "<copy-paste the exact HTML substring as-is>" }. If multiple passages support the answer, include one entry each. Snippet rules: copy the smallest block element verbatim, no truncation, no ellipsis, no tag changes, must be a literal substring of the source HTML. If answer_source is "ai", set source_citations to [].
 
 OUTPUT FORMAT:
 Return ONLY raw JSON — no markdown, no code fences, no extra text. Follow this schema exactly:

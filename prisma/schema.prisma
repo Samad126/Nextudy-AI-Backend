@@ -269,7 +269,7 @@ model Question {
   answer_source     AnswerSource @default(ai)
   explanation       String?
   difficulty        Difficulty?
-  source_citation   Json?
+  source_citations  Json?
   created_at        DateTime     @default(now())
 
   workbench       Workbench        @relation(fields: [workbenchId], references: [id], onDelete: Cascade)

@@ -26,8 +26,8 @@ export class QuestionsRepository {
           answer_source: q.answer_source === 'file' ? 'file' : 'ai',
           difficulty: q.difficulty,
           explanation: q.explanation ?? null,
-          source_citation: q.source_citation
-            ? (q.source_citation as unknown as Prisma.InputJsonValue)
+          source_citations: q.source_citations?.length
+            ? (q.source_citations as unknown as Prisma.InputJsonValue)
             : Prisma.JsonNull,
         })),
       });
@@ -292,8 +292,8 @@ export class QuestionsRepository {
           answer_source: q.answer_source === 'file' ? 'file' : 'ai',
           difficulty,
           explanation: q.explanation ?? null,
-          source_citation: q.source_citation
-            ? (q.source_citation as unknown as Prisma.InputJsonValue)
+          source_citations: q.source_citations?.length
+            ? (q.source_citations as unknown as Prisma.InputJsonValue)
             : Prisma.JsonNull,
         },
       });

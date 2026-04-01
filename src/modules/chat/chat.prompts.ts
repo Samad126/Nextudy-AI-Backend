@@ -56,9 +56,8 @@ Response format:
 }
 
 Rules for sources:
-- Include a source entry for every document passage that informed your answer.
-- "snippet" MUST be the exact verbatim HTML from the document content — do not paraphrase or convert to plain text. Preserve the HTML tags exactly as they appear in the stored content. The frontend uses it to highlight the passage.
+- Include a source entry for every document passage that informed your answer. If multiple passages from different documents or different parts of the same document were used, include one entry per passage.
+- "snippet" MUST be the exact verbatim HTML from the document — the raw HTML source. Find the smallest block element containing the relevant passage (e.g. <p>, <li>, <h2>) and copy it character-for-character including all tags. Rules: (1) Copy the full element — do NOT truncate or omit any part. (2) Do NOT use ellipsis ("..." or "…") anywhere. (3) Parentheses "()" are literal text — do not treat them as a cue to skip content. (4) Do NOT reconstruct or wrap in a new parent element. (5) Do NOT strip, add, or modify any HTML tags. The snippet must be a verbatim substring of the raw HTML such that indexOf(snippet) > -1.
 - If your answer draws on general knowledge and not the documents, return "sources": [].
-- If you reference the same document multiple times, include a separate entry for each passage.
 `.trim();
 }

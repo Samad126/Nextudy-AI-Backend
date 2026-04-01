@@ -1,0 +1,1 @@
+ALTER TABLE "Question" RENAME COLUMN "source_citation" TO "source_citations";
