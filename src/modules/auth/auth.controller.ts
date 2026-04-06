@@ -26,10 +26,14 @@ import { JwtPayload } from './types/jwt-payload.type.js';
 import { extractJwtFromCookieOrHeader } from './util/jwtExtractor.js';
 import type { User } from '../../../generated/prisma/client.js';
 import type { Request } from 'express';
+import { ConfigService } from '@nestjs/config';
 
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly configService: ConfigService,
+  ) {}
 
   @Public()
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
@@ -72,11 +76,12 @@ export class AuthController {
     const accessToken = extractJwtFromCookieOrHeader(req) ?? '';
     await this.authService.logout(userId, accessToken);
     const isProd = process.env.NODE_ENV === 'production';
+    const cookieDomain = process.env.COOKIE_DOMAIN;
     res.clearCookie('refreshToken', {
       httpOnly: true,
       secure: isProd,
       sameSite: 'lax',
-      ...(isProd && { domain: '.alakbaroff.com' }),
+      ...(isProd && cookieDomain && { domain: cookieDomain }),
     });
   }
 
@@ -140,8 +145,8 @@ export class AuthController {
 
   private setRefreshTokenCookie(res: Response, refreshToken: string) {
     const isProd = process.env.NODE_ENV === 'production';
+    const cookieDomain = this.configService.get<string>('COOKIE_DOMAIN');
 
-    // Clear any stale domain-less cookie that shadows the domain-scoped one
     if (isProd) {
       res.clearCookie('refreshToken', {
         httpOnly: true,
@@ -154,7 +159,7 @@ export class AuthController {
       httpOnly: true,
       secure: isProd,
       sameSite: 'lax',
-      ...(isProd && { domain: '.alakbaroff.com' }),
+      ...(isProd && cookieDomain && { domain: cookieDomain }),
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
     });
   }

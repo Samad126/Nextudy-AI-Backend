@@ -25,15 +25,16 @@ export class GeminiService implements IGeminiService, IGeminiFileService {
   private genAI: GoogleGenerativeAI;
   private model: GenerativeModel;
   private fileManager: GoogleAIFileManager;
+  readonly modelName: string;
 
   constructor(configService: ConfigService) {
     const apiKey = configService.getOrThrow<string>('GEMINI_API_KEY');
+    this.modelName =
+      configService.get<string>('GEMINI_MODEL') ??
+      'gemini-3.1-flash-lite-preview';
     this.genAI = new GoogleGenerativeAI(apiKey);
     this.fileManager = new GoogleAIFileManager(apiKey);
-    this.model = this.genAI.getGenerativeModel({
-      // model: 'gemini-3.1-flash-lite-preview',
-      model: 'gemini-3.1-flash-lite-preview',
-    });
+    this.model = this.genAI.getGenerativeModel({ model: this.modelName });
   }
 
   async uploadFile(
@@ -120,6 +121,10 @@ export class GeminiService implements IGeminiService, IGeminiFileService {
     try {
       const result = await this.model.generateContent({
         contents: [{ role: 'user', parts }],
+        // generationConfig: {
+        //   maxOutputTokens: 16384, // Increase output limit for large documents
+        //   temperature: 0.1, // Lower temperature for more accurate extraction
+        // },
       });
       return result.response.text();
     } catch (error) {
@@ -169,7 +174,7 @@ export class GeminiService implements IGeminiService, IGeminiFileService {
   ): AsyncGenerator<string> {
     const modelWithSystem = systemPrompt
       ? this.genAI.getGenerativeModel({
-          model: 'gemini-3.1-flash-lite-preview',
+          model: this.modelName,
           systemInstruction: systemPrompt,
         })
       : this.model;
@@ -196,7 +201,7 @@ export class GeminiService implements IGeminiService, IGeminiFileService {
 
   async extractTextFromFile(uri: string): Promise<string> {
     const prompt =
-      'Extract all text from this file and format it as clean HTML. Use semantic tags such as <h1>–<h6>, <p>, <strong>, <em>, <ul>, <ol>, <li>, <table>, <tr>, <th>, <td>, and <br> where appropriate. Output only the HTML content with no wrapping <html>, <head>, or <body> tags and no markdown.';
+      'You are a high-fidelity document text extractor. EXTRACT EVERY SINGLE WORD, TABLE, DATA POINT, and SECTION from this file. DO NOT SUMMARIZE. DO NOT OMIT ANY TEXT. Format it as semantic HTML (using tags like <h1>–<h6>, <p>, <strong>, <em>, <ul>, <ol>, <li>, <table>, <tr>, <th>, <td>, <br>). Output ONLY the raw HTML content with no wrapping <html>, <head>, or <body> tags and no markdown. If the document is long, you must continue until the very end. EVERY DETAIL IS CRITICAL.';
     return this.generateWithFiles(prompt, [
       { uri, mimeType: 'application/pdf' },
     ]);
@@ -212,7 +217,7 @@ export class GeminiService implements IGeminiService, IGeminiFileService {
   ): Promise<string> {
     const modelWithSystem = systemPrompt
       ? this.genAI.getGenerativeModel({
-          model: 'gemini-3.1-flash-lite-preview',
+          model: this.modelName,
           systemInstruction: systemPrompt,
         })
       : this.model;
@@ -238,38 +243,3 @@ export class GeminiService implements IGeminiService, IGeminiFileService {
     }
   }
 }
-
-/* 
-    status: 429,
-  statusText: 'Too Many Requests',
-  errorDetails: [
-    {
-      '@type': 'type.googleapis.com/google.rpc.Help',
-      links: [
-        {
-          description: 'Learn more about Gemini API quotas',
-          url: 'https://ai.google.dev/gemini-api/docs/rate-limits'
-        }
-      ]
-    },
-    {
-      '@type': 'type.googleapis.com/google.rpc.QuotaFailure',
-      violations: [
-        {
-          quotaMetric: 'generativelanguage.googleapis.com/generate_content_free_tier_requests',
-          quotaId: 'GenerateRequestsPerMinutePerProjectPerModel-FreeTier',
-          quotaDimensions: {
-            model: 'gemini-3.1-flash-lite',
-            location: 'global'
-          },
-          quotaValue: '15'
-        }
-      ]
-    },
-    {
-      '@type': 'type.googleapis.com/google.rpc.RetryInfo',
-      retryDelay: '11s'
-    }
-  ]
-}
-*/

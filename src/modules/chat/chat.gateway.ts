@@ -17,7 +17,7 @@ import { ChatService } from './chat.service.js';
 import { RedisService } from '../../common/redis/redis.service.js';
 import type { JwtPayload } from '../auth/types/jwt-payload.type.js';
 
-@WebSocketGateway({ namespace: 'chat', cors: true })
+@WebSocketGateway({ namespace: 'chat', cors: false })
 export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer()
   server: Server;

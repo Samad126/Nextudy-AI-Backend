@@ -1,12 +1,13 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
 import {
   IsArray,
   IsInt,
   ArrayMinSize,
   ValidateNested,
   IsDateString,
+  IsDefined,
 } from 'class-validator';
-import { Type } from 'class-transformer';
 
 export class QuizAnswerDto {
   @ApiProperty({ description: 'QuizQuestion ID' })
@@ -18,6 +19,7 @@ export class QuizAnswerDto {
       'For MCQ: the MCQChoice ID (number). For open-ended: free text (string).',
     oneOf: [{ type: 'string' }, { type: 'integer' }],
   })
+  @IsDefined()
   userAnswer: string | number;
 }
 

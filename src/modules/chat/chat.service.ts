@@ -5,6 +5,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import type { IGeminiService } from '../gemini/gemini.interface.js';
 import { GEMINI_SERVICE } from '../gemini/gemini.interface.js';
 import { CreateChatDto } from './dto/create-chat.dto.js';
@@ -19,9 +20,6 @@ import {
 } from './chat.prompts.js';
 import { ChatRepository } from './chat.repository.js';
 import { WorkbenchesRepository } from '../workbenches/workbenches.repository.js';
-
-const MODEL_ID = 'gemini-3.1-flash-lite-preview';
-
 type WorkbenchResource = {
   id: number;
   name: string;
@@ -32,12 +30,18 @@ type WorkbenchResource = {
 @Injectable()
 export class ChatService {
   private readonly logger = new Logger(ChatService.name);
+  private readonly modelId: string;
 
   constructor(
     private readonly repo: ChatRepository,
     private readonly workbenchesRepo: WorkbenchesRepository,
     @Inject(GEMINI_SERVICE) private readonly gemini: IGeminiService,
-  ) {}
+    configService: ConfigService,
+  ) {
+    this.modelId =
+      configService.get<string>('GEMINI_MODEL') ??
+      'gemini-3.1-flash-lite-preview';
+  }
 
   private async getWorkbenchForUser(userId: number, workbenchId: number) {
     const workbench = await this.workbenchesRepo.findOneAsMember(
@@ -76,7 +80,7 @@ export class ChatService {
     const chat = await this.repo.createChat({
       workbenchId: dto.workbenchId,
       title: dto.title,
-      model_id: MODEL_ID,
+      model_id: this.modelId,
       system_prompt: SYSTEM_PROMPT,
     });
 
@@ -126,7 +130,7 @@ export class ChatService {
       chat_history_id: chatId,
       role: MessageRole.assistant,
       content: parsed.answer,
-      model_id: MODEL_ID,
+      model_id: this.modelId,
       sources: parsed.sources as object[],
     });
 
@@ -207,7 +211,7 @@ export class ChatService {
       chat_history_id: chatId,
       role: MessageRole.assistant,
       content: parsed.answer,
-      model_id: MODEL_ID,
+      model_id: this.modelId,
       sources: parsed.sources as object[],
     });
 

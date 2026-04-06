@@ -53,11 +53,6 @@ export class QuestionsController {
     return this.questionsService.findAll(userId, workbenchId);
   }
 
-  @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.questionsService.findOne(+id);
-  }
-
   @Patch(':id')
   @ApiOperation({
     summary:

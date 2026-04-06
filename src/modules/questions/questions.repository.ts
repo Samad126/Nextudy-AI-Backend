@@ -14,7 +14,10 @@ export class QuestionsRepository {
 
   async persistQuestions(questions: QuestionRaw[], workbenchId: number) {
     return await this.db.$transaction(async (tx) => {
-      // 1. Bulk-create all question rows (1 DB call)
+      // 1. Delete existing questions atomically before inserting new ones
+      await tx.question.deleteMany({ where: { workbenchId } });
+
+      // 2. Bulk-create all question rows (1 DB call)
       const questionRows = await tx.question.createManyAndReturn({
         data: questions.map((q) => ({
           workbenchId,
